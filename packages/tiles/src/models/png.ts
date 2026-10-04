@@ -129,3 +129,36 @@ export function roofTexture(seed = 11): Texture {
     return [v, v + 1, v + 4];
   });
 }
+
+/** Монгол хээ (өлзий/алхан хээ маягийн меандр) — алтлаг хээ бараан суурь дээр; фриз, хонгилын хүрээнд */
+export function ornamentTexture(seed = 13): Texture {
+  const w = 128, h = 64;
+  return image(w, h, (x, y) => {
+    const gx = x % 32, gy = y;
+    // алхан хээ: 4 px өргөн зураасаар спираль маягийн меандр
+    const t = 4;
+    const inBand =
+      (gy >= 8 && gy < 8 + t && gx >= 4 && gx < 28) ||
+      (gy >= 8 && gy < 56 && gx >= 24 && gx < 24 + t) ||
+      (gy >= 52 && gy < 56 && gx >= 8 && gx < 28) ||
+      (gy >= 20 && gy < 56 && gx >= 8 && gx < 8 + t) ||
+      (gy >= 20 && gy < 20 + t && gx >= 8 && gx < 20) ||
+      (gy >= 20 && gy < 44 && gx >= 16 && gx < 16 + t) ||
+      (gy >= 40 && gy < 44 && gx >= 12 && gx < 20) ||
+      (gy >= 32 && gy < 40 && gx >= 12 && gx < 12 + t);
+    const n = hash(x, y, seed) * 10;
+    if (inBand) return [205 + n, 165 + n, 70 + n * 0.5];
+    const base = 108 + hash(x, y, seed + 1) * 12;
+    return [base, base - 6, base - 18];
+  });
+}
+
+/** Шилэн фасад: хуваалтгүй, зөвхөн тусгалын градиент + бага зэрэг долгион (хуваалтыг геометрээр хийнэ) */
+export function curtainGlassTexture(seed = 17): Texture {
+  return image(128, 128, (x, y) => {
+    const refl = smoothNoise(x, y, 40, seed) * 0.5 + (1 - y / 128) * 0.5;
+    const wave = Math.sin((x / 128) * Math.PI * 2 + y * 0.03) * 0.08;
+    const k = refl + wave;
+    return [28 + k * 80, 52 + k * 95, 70 + k * 105];
+  });
+}

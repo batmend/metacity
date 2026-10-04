@@ -15,7 +15,8 @@ import type { Position } from 'geojson';
 import { metersPerDegree } from '../geo.js';
 import type { LandmarkModel } from '@metacity/schema';
 import { GltfBuilder, signedArea, type Material } from './gltf.js';
-import { bronzeTexture, glassTexture, graniteTexture, marbleTexture, plasterTexture, roofTexture } from './png.js';
+import { bronzeTexture, curtainGlassTexture, glassTexture, graniteTexture, marbleTexture, ornamentTexture, plasterTexture, roofTexture } from './png.js';
+import { equestrian, seatedFigure, type Frame } from './figures.js';
 
 /** OSM way/4432623 (planetiler гаралтаас, WGS84) */
 export const PALACE_FOOTPRINT: Position[][] = [
@@ -37,7 +38,10 @@ const M = {
   stone: { name: 'stone', color: [1, 1, 1], texture: plasterTexture(1), uvScale: 5, roughness: 0.85 } satisfies Material,
   stoneLight: { name: 'stone-light', color: [0.9, 0.87, 0.8], roughness: 0.75 } satisfies Material,
   roof: { name: 'roof', color: [1, 1, 1], texture: roofTexture(), uvScale: 6, roughness: 0.95 } satisfies Material,
-  glass: { name: 'glass', color: [1, 1, 1], texture: glassTexture(), uvScale: 2.6, metallic: 0.2, roughness: 0.25 } satisfies Material,
+  glass: { name: 'glass', color: [1, 1, 1], texture: curtainGlassTexture(), uvScale: 12, metallic: 0.3, roughness: 0.15 } satisfies Material,
+  window: { name: 'window', color: [1, 1, 1], texture: glassTexture(), uvScale: 2.6, metallic: 0.2, roughness: 0.25 } satisfies Material,
+  ornament: { name: 'ornament', color: [1, 1, 1], texture: ornamentTexture(), uvScale: 1.6, metallic: 0.5, roughness: 0.45 } satisfies Material,
+  mullion: { name: 'mullion', color: [0.55, 0.55, 0.58], metallic: 0.9, roughness: 0.35 } satisfies Material,
   marble: { name: 'marble', color: [1, 1, 1], texture: marbleTexture(), uvScale: 3, roughness: 0.6 } satisfies Material,
   granite: { name: 'granite', color: [1, 1, 1], texture: graniteTexture(), uvScale: 2, roughness: 0.7 } satisfies Material,
   bronze: { name: 'bronze', color: [0.55, 0.5, 0.45], texture: bronzeTexture(), uvScale: 1.5, metallic: 0.5, roughness: 0.55 } satisfies Material,
@@ -95,6 +99,23 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
     g.cylinder(mat, c[0], c[1], z, r, h, seg, rTop);
   };
 
+  const frame: Frame = { W: (u, v, z) => { const c = F(u, v); return [c[0], c[1], z]; }, ang };
+  /** фасадтай параллель карниз/молдинг: профиль (v, z) u0→u1 */
+  const SWEEP = (mat: string, vBase: number, zBase: number, u0: number, u1: number, profile: [number, number][]) =>
+    g.sweep(mat, F(0, vBase), dir, out, u0, u1, profile.map(([v, z]) => [v, zBase + z] as [number, number]));
+  /** фасадад перпендикуляр (хажуу тал) карниз: v0→v1 */
+  const SWEEP_V = (mat: string, uBase: number, zBase: number, v0: number, v1: number, profile: [number, number][]) =>
+    g.sweep(mat, F(uBase, 0), out, [-dir[0], -dir[1]], v0, v1, profile.map(([v, z]) => [v, zBase + z] as [number, number]));
+  /** Багана: суурь (торус), entasis их бие, алтан капитель (эхинус + абак) — тойруулалт */
+  const COLUMN = (u: number, v: number, z0: number, h: number, r: number) => {
+    const c = F(u, v);
+    g.lathe('stone-light', c[0], c[1], z0, [[0, 0], [r * 2.1, 0], [r * 2.1, 0.25], [r * 1.5, 0.25], [r * 1.35, 0.45], [r * 1.15, 0.6], [r, 0.75]], 24);
+    g.lathe('marble', c[0], c[1], z0 + 0.75, [[r, 0], [r * 1.02, h * 0.3], [r * 0.95, h * 0.7], [r * 0.86, h - 1.9]], 24);
+    g.lathe('gold', c[0], c[1], z0 + h - 1.15, [[r * 0.86, 0], [r * 1.15, 0.35], [r * 1.35, 0.6], [r * 1.5, 0.75], [r * 1.5, 0.85]], 24); // эхинус
+    g.box('stone-light', c[0], c[1], z0 + h - 0.3, r * 3.2, r * 3.2, 0.3, ang); // абак
+  };
+  const CORNICE: [number, number][] = [[0, 0], [0.35, 0], [0.5, 0.18], [0.5, 0.38], [0.8, 0.5], [0.95, 0.75], [0.95, 1.0], [0, 1.0]];
+
   // ---- Хэмжээс (зургаас тооцсон) ----
   const PLAT_H = 2.0; // тавцан
   const GAL_D = 9; // колоннадаас шилэн фасад хүртэлх гүн
@@ -132,15 +153,17 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
     for (let k = 0; k < count; k++) {
       const t = (1 + step * (k + 0.5)) / len;
       const cx = a[0] + (b[0] - a[0]) * t, cy = a[1] + (b[1] - a[1]) * t;
-      for (const z of [2.2, 7.4, 12.6]) g.box('glass', cx + nx * 0.05, cy + ny * 0.05, z, 2.0, 0.25, 3.0, sa);
+      for (const z of [2.2, 7.4, 12.6]) g.box('window', cx + nx * 0.05, cy + ny * 0.05, z, 2.0, 0.25, 3.0, sa);
     }
     g.box('gold', mx + nx * 0.1, my + ny * 0.1, BODY_H - 1.2, len, 0.3, 0.35, sa);
   }
 
   // ---- Шилэн фасад (колоннадын ард, бүтэн өндөр), доор нь чулуун парапет ----
   B('granite', 0, -GAL_D + 0.6, PLAT_H, fLen + 2, 1.2, 1.1);
-  B('glass', 0, -GAL_D + 0.3, PLAT_H + 1.1, fLen + 2, 0.5, COL_H - 1.1 + ENT_H);
-  // шилэн фасадын хэвтээ хуваалт (алтан)
+  B('glass', 0, -GAL_D + 0.3, PLAT_H + 1.1, fLen + 2, 0.4, COL_H - 1.1 + ENT_H);
+  // шилэн фасадын хуваалтын төмөр: босоо 1.65 м тутамд, хэвтээ 4 эгнээ; алтан хоёр судал
+  for (let x = -fLen / 2 - 1; x <= fLen / 2 + 1; x += 1.65) B('mullion', x, -GAL_D + 0.55, PLAT_H + 1.1, 0.08, 0.1, COL_H - 1.1 + ENT_H);
+  for (const z of [PLAT_H + 3.4, PLAT_H + 7.2, PLAT_H + 11.0, PLAT_H + 13.2]) B('mullion', 0, -GAL_D + 0.55, z, fLen + 2, 0.1, 0.08);
   for (const z of [PLAT_H + 5.2, PLAT_H + 9.3]) B('gold', 0, -GAL_D + 0.62, z, fLen + 2, 0.15, 0.25);
 
   // ---- Тавцан + бүх уртаараа өргөн шат ----
@@ -156,12 +179,7 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
   // ---- Колоннад: нарийн багана, алтан капитель; 4.9 м тутамд ----
   const spacing = 4.9;
   const colCount = Math.round(fLen / spacing);
-  const columnAt = (u: number, v: number, h: number, r: number) => {
-    B('stone-light', u, v, PLAT_H, r * 2.6, r * 2.6, 0.5);
-    CYL('marble', u, v, PLAT_H + 0.5, r, h - 1.6, r * 0.9);
-    B('gold', u, v, PLAT_H + h - 1.1, r * 2.4, r * 2.4, 0.4); // алтан капитель
-    B('stone-light', u, v, PLAT_H + h - 0.7, r * 2.6, r * 2.6, 0.7);
-  };
+  const columnAt = (u: number, v: number, h: number, r: number) => COLUMN(u, v, PLAT_H, h, r);
   for (let k = 0; k <= colCount; k++) {
     const u = -fLen / 2 + spacing * k;
     if (Math.abs(u) < CENTER_W / 2 + 1) continue; // төвийн блок тусдаа
@@ -170,14 +188,18 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
   // Энтаблатур + алтан судал + дээвэр
   B('stone', 0, -GAL_D / 2 + 0.8, PLAT_H + COL_H, fLen + 3, GAL_D + 2.6, ENT_H);
   B('gold', 0, 1.9, PLAT_H + COL_H + ENT_H * 0.55, fLen + 3, 0.15, 0.4);
-  B('stone-light', 0, -GAL_D / 2 + 0.8, ROOF_Z, fLen + 3.4, GAL_D + 3, 0.7); // карниз
+  SWEEP('stone-light', 2.4, ROOF_Z - 0.3, -fLen / 2 - 1.5, fLen / 2 + 1.5, CORNICE); // урд карниз (профильтэй)
+  B('stone-light', 0, -GAL_D / 2 + 0.8, ROOF_Z, fLen + 3.4, GAL_D + 3, 0.7);
+  B('ornament', 0, 2.42, PLAT_H + COL_H + 0.2, fLen + 3, 0.1, 1.2); // фриз — монгол хээ
   B('roof', 0, -GAL_D / 2 + 0.8, ROOF_Z + 0.7, fLen + 2, GAL_D + 1.8, 0.2);
 
   // ---- Павильон (4 ш): захын 2 + төвийн хажуугийн 2 — шилэн, хавтгай тагтай өндөрлөг ----
   for (const u of [-endPav, endPav, -innerPav, innerPav]) {
     B('stone', u, -GAL_D / 2 + 0.8, ROOF_Z, PAV_W, GAL_D + 2.6, 1.0); // суурь
     B('glass', u, -GAL_D / 2 + 0.8, ROOF_Z + 1.0, PAV_W - 1.6, GAL_D + 1, PAV_H - 2.4);
-    B('stone-light', u, -GAL_D / 2 + 0.8, ROOF_Z + PAV_H - 1.4, PAV_W + 0.8, GAL_D + 3.4, 1.4); // хавтгай таг
+    B('stone-light', u, -GAL_D / 2 + 0.8, ROOF_Z + PAV_H - 1.4, PAV_W + 0.8, GAL_D + 3.4, 1.0); // хавтгай таг
+    SWEEP('stone-light', -GAL_D / 2 + 0.8 + (GAL_D + 3.4) / 2, ROOF_Z + PAV_H - 1.4, u - PAV_W / 2 - 0.4, u + PAV_W / 2 + 0.4, CORNICE);
+    for (let x = u - PAV_W / 2 + 0.6; x <= u + PAV_W / 2 - 0.6; x += 1.65) B('mullion', x, -GAL_D / 2 + 0.8 + (GAL_D + 1) / 2, ROOF_Z + 1.0, 0.08, 0.1, PAV_H - 2.4);
     B('gold', u, 1.8, ROOF_Z + PAV_H - 1.0, PAV_W + 0.8, 0.12, 0.3);
     B('roof', u, -GAL_D / 2 + 0.8, ROOF_Z + PAV_H, PAV_W - 0.4, GAL_D + 2.2, 0.2);
   }
@@ -195,7 +217,7 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
   }
   // хонгилын алтан хүрээ
   for (const du of [-ARCH_W / 2 - 0.4, ARCH_W / 2 + 0.4]) B('gold', du, CV + GAL_D / 2 + 0.05, PLAT_H, 0.6, 0.25, ARCH_H);
-  B('gold', 0, CV + GAL_D / 2 + 0.05, PLAT_H + ARCH_H + 0.1, ARCH_W + 1.4, 0.25, 0.6);
+  B('ornament', 0, CV + GAL_D / 2 + 0.05, PLAT_H + ARCH_H + 0.1, ARCH_W + 1.4, 0.25, 1.2);
   // төвийн 6 багана (3+3), хонгилын хоёр талд, урагш цухуйсан
   for (const u of [-14.6, -11.0, -7.6, 7.6, 11.0, 14.6]) columnAt(u, CV + GAL_D / 2 + 2.6, COL_H, 0.6);
   B('stone', 0, CV + GAL_D / 2 + 2.6, PLAT_H + COL_H, CENTER_W + 1, 3.4, ENT_H); // портикийн энтаблатур
@@ -203,36 +225,31 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
   // төвийн блокийн дээд хэсэг: алтан судал, карниз, өндөрлөг атик, таг, туг
   B('gold', 0, CV + GAL_D / 2 + 0.1, PLAT_H + CENTER_H - 3.2, CENTER_W, 0.15, 0.4);
   B('stone-light', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H, CENTER_W + 1.2, GAL_D + 2 * CV + 1.2, 1.2);
+  SWEEP('stone-light', CV + GAL_D / 2 + 0.6, PLAT_H + CENTER_H - 0.2, -CENTER_W / 2 - 0.6, CENTER_W / 2 + 0.6, CORNICE);
+  B('ornament', 0, CV + GAL_D / 2 + 0.12, PLAT_H + CENTER_H - 2.0, CENTER_W, 0.1, 1.4); // төвийн фриз
   B('stone', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 1.2, CENTER_W - 8, GAL_D - 1, 3.2);
   B('stone-light', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 4.4, CENTER_W - 6.5, GAL_D + 0.5, 1.0);
   B('roof', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 5.4, CENTER_W - 8, GAL_D - 1, 0.2);
-  CYL('pole', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 5.4, 0.14, 9, 0.14, 8);
+  CYL('pole', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 5.4, 0.16, 9, 0.1, 10);
+  { const c = F(0, -GAL_D / 2 + CV); g.lathe('gold', c[0], c[1], PLAT_H + CENTER_H + 14.4, [[0, 0], [0.22, 0.1], [0.3, 0.3], [0.2, 0.5], [0, 0.6]], 12); }
   B('flag', 1.6, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 12.2, 3.0, 0.06, 2.0);
 
-  // ---- Хөшөөнүүд ----
-  const seated = (u: number, v: number, scale: number, pedH: number, pedW: number) => {
-    B('granite', u, v, PLAT_H, pedW, pedW * 0.7, pedH);
-    const z = PLAT_H + pedH;
-    B('bronze', u, v - 0.9 * scale, z, 3.6 * scale, 2.2 * scale, 1.5 * scale); // сэнтий
-    B('bronze', u, v - 0.9 * scale, z + 1.5 * scale, 2.4 * scale, 1.5 * scale, 3.4 * scale); // их бие
-    B('bronze', u, v + 0.6 * scale, z + 1.5 * scale, 2.6 * scale, 1.8 * scale, 1.6 * scale); // хөл
-    CYL('bronze', u, v - 0.9 * scale, z + 4.9 * scale, 0.55 * scale, 1.1 * scale, 0.5 * scale, 12);
-    B('bronze', u, v - 0.9 * scale, z + 6.0 * scale, 1.4 * scale, 1.2 * scale, 0.5 * scale);
+  // ---- Хөшөөнүүд (гөлгөр, анатомийн пропорцтой) ----
+  const pedestal = (u: number, v: number, w: number, d: number, h: number) => {
+    B('granite', u, v, PLAT_H, w, d, h * 0.55);
+    B('granite', u, v, PLAT_H + h * 0.55, w - 0.5, d - 0.4, h * 0.45);
+    SWEEP('granite', v + d / 2 - 0.2, PLAT_H + h - 0.35, u - w / 2 + 0.25, u + w / 2 - 0.25, [[0, 0], [0.25, 0], [0.3, 0.2], [0.2, 0.35], [0, 0.35]]);
   };
-  seated(0, CV + GAL_D / 2 - 2.5, 1.5, 2.1, 7.5); // Чингис хаан — хонгилын дотор
-  seated(-endPav, -2.5, 1.0, 1.6, 5); // Өгэдэй — баруун захын павильон доор
-  seated(endPav, -2.5, 1.0, 1.6, 5); // Хубилай — зүүн зах
-  const equestrian = (u: number, v: number, facing: 1 | -1) => {
-    B('granite', u, v, PLAT_H, 6.5, 3.2, 2.0);
-    const z = PLAT_H + 2.0;
-    for (const [du, dv] of [[-1.6, -0.6], [-1.6, 0.6], [1.6, -0.6], [1.6, 0.6]] as P2[]) CYL('bronze', u + du * facing, v + dv, z, 0.22, 1.9, 0.2, 8);
-    B('bronze', u, v, z + 1.9, 4.2, 1.5, 1.6);
-    B('bronze', u + 2.6 * facing, v, z + 2.6, 1.6, 0.9, 1.6);
-    B('bronze', u, v, z + 3.5, 1.2, 1.1, 2.0);
-    CYL('bronze', u, v, z + 5.5, 0.35, 0.7, 0.3, 10);
-  };
-  equestrian(-CENTER_W / 2 - 5, 3.2, -1); // Боорчу
-  equestrian(CENTER_W / 2 + 5, 3.2, 1); // Мухулай
+  pedestal(0, CV + GAL_D / 2 - 2.5, 7.5, 5.2, 2.1);
+  seatedFigure(g, 'bronze', frame, 0, CV + GAL_D / 2 - 2.5, PLAT_H + 2.1, 1.5); // Чингис хаан — хонгилын дотор
+  pedestal(-endPav, -2.5, 5, 3.6, 1.6);
+  seatedFigure(g, 'bronze', frame, -endPav, -2.5, PLAT_H + 1.6, 1.0); // Өгэдэй
+  pedestal(endPav, -2.5, 5, 3.6, 1.6);
+  seatedFigure(g, 'bronze', frame, endPav, -2.5, PLAT_H + 1.6, 1.0); // Хубилай
+  pedestal(-CENTER_W / 2 - 5, 3.2, 6.5, 3.2, 2.0);
+  equestrian(g, 'bronze', frame, -CENTER_W / 2 - 5, 3.2, PLAT_H + 2.0, -1, 1.15); // Боорчу
+  pedestal(CENTER_W / 2 + 5, 3.2, 6.5, 3.2, 2.0);
+  equestrian(g, 'bronze', frame, CENTER_W / 2 + 5, 3.2, PLAT_H + 2.0, 1, 1.15); // Мухулай
 
   const glb = g.toGLB('government-palace');
   const def: ModelDef = {

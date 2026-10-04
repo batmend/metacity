@@ -35,15 +35,33 @@ export class ModelLayer implements CustomLayerInterface {
       this.scene = new T.Scene();
       this.camera = new T.Camera();
       // Нар: зүүн урдаас дээрээс (glTF: x=зүүн, y=дээш, z=урд) — урд фасад, колоннад гэрэлтэнэ
-      const sun = new T.DirectionalLight(0xfff4e0, 2.6);
+      const sun = new T.DirectionalLight(0xfff4e0, 1.7);
       sun.position.set(90, 150, 130);
       this.scene.add(sun);
-      const fill = new T.DirectionalLight(0xdfe8ff, 0.8);
+      const fill = new T.DirectionalLight(0xdfe8ff, 0.45);
       fill.position.set(-120, 80, -60);
       this.scene.add(fill);
-      this.scene.add(new T.HemisphereLight(0xe8eefc, 0x9a9183, 1.6));
+      this.scene.add(new T.HemisphereLight(0xe8eefc, 0x9a9183, 0.55));
       this.renderer = new T.WebGLRenderer({ canvas: map.getCanvas(), context: gl, antialias: true });
       this.renderer.autoClear = false;
+      // Бодит материал: ACES tone mapping + орчны тусгал (шил, алт, гантиг тусгалтай болно)
+      this.renderer.toneMapping = T.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 0.95;
+      this.renderer.outputColorSpace = T.SRGBColorSpace;
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      const cam = sun.shadow.camera;
+      cam.left = -160; cam.right = 160; cam.top = 160; cam.bottom = -160; cam.near = 1; cam.far = 600;
+      sun.shadow.bias = -0.0004;
+      void import('three/examples/jsm/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => {
+        if (!this.renderer || !this.scene) return;
+        const pmrem = new T.PMREMGenerator(this.renderer);
+        this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        this.scene.environmentIntensity = 0.45;
+        this.map?.triggerRepaint();
+      });
       if (this.pending) void this.show(this.pending);
     });
   }
@@ -66,6 +84,20 @@ export class ModelLayer implements CustomLayerInterface {
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
       const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${def.url}`);
       obj = gltf.scene;
+      obj.traverse((o) => {
+        const m = o as import('three').Mesh;
+        if (m.isMesh) {
+          m.castShadow = true;
+          m.receiveShadow = true;
+          const mat = m.material as import('three').MeshStandardMaterial;
+          if (mat && mat.name === 'glass') {
+            mat.envMapIntensity = 1.6;
+            mat.roughness = 0.12;
+            mat.metalness = 0.35;
+          }
+          if (mat && mat.name === 'gold') mat.envMapIntensity = 1.4;
+        }
+      });
       this.cache.set(def.id, obj);
     }
     this.scene.add(obj);

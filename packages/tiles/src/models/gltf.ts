@@ -67,6 +67,136 @@ export class GltfBuilder {
     p.indices.push(base, base + 1, base + 2);
   }
 
+  /** Гурвалжин, орой бүрт өөрийн нормалтай (гөлгөр гадаргуу) */
+  triangleN(mat: string, a: V3, b: V3, c: V3, na: V3, nb: V3, nc: V3): void {
+    const p = this.prim(mat);
+    const base = p.vertexCount;
+    const scale = this.materials.find((m) => m.name === mat)?.uvScale ?? 4;
+    const n = normal(a, b, c);
+    const ax = Math.abs(n[0]), ay = Math.abs(n[1]), az = Math.abs(n[2]);
+    for (const [v, vn] of [[a, na], [b, nb], [c, nc]] as [V3, V3][]) {
+      p.positions.push(v[0], v[1], v[2]);
+      p.normals.push(vn[0], vn[1], vn[2]);
+      let u: number, w: number;
+      if (az >= ax && az >= ay) { u = v[0]; w = v[1]; }
+      else if (ax >= ay) { u = v[1]; w = v[2]; }
+      else { u = v[0]; w = v[2]; }
+      p.uvs.push(u / scale, 1 - w / scale);
+    }
+    p.indices.push(base, base + 1, base + 2);
+  }
+
+  /**
+   * Тойруулалт (surface of revolution): профиль [(r, z)] цэгүүдийг z тэнхлэгийг тойруулна.
+   * Багана, капитель, суурь, хөшөөний тавцан, оройн чимэг г.м. Гөлгөр нормалтай.
+   */
+  lathe(mat: string, cx: number, cy: number, z0: number, profile: [number, number][], segments = 24, rotZ = 0): void {
+    const ring = (i: number): V3[] => {
+      const [r, z] = profile[i]!;
+      const pts: V3[] = [];
+      for (let k = 0; k <= segments; k++) {
+        const a = rotZ + (k / segments) * Math.PI * 2;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a), z0 + z]);
+      }
+      return pts;
+    };
+    // профилийн нормал (2D): dz, -dr чиглэл
+    const pn = (i: number): [number, number] => {
+      const i0 = Math.max(0, i - 1), i1 = Math.min(profile.length - 1, i + 1);
+      const dr = profile[i1]![0] - profile[i0]![0], dz = profile[i1]![1] - profile[i0]![1];
+      const l = Math.hypot(dr, dz) || 1;
+      return [dz / l, -dr / l];
+    };
+    for (let i = 0; i < profile.length - 1; i++) {
+      const r0 = ring(i), r1 = ring(i + 1);
+      const n0 = pn(i), n1 = pn(i + 1);
+      for (let k = 0; k < segments; k++) {
+        const a0 = rotZ + (k / segments) * Math.PI * 2, a1 = rotZ + ((k + 1) / segments) * Math.PI * 2;
+        const N = (n: [number, number], a: number): V3 => [n[0] * Math.cos(a), n[0] * Math.sin(a), n[1]];
+        if (profile[i]![0] > 1e-6 || profile[i + 1]![0] > 1e-6) {
+          this.triangleN(mat, r0[k]!, r0[k + 1]!, r1[k + 1]!, N(n0, a0), N(n0, a1), N(n1, a1));
+          this.triangleN(mat, r0[k]!, r1[k + 1]!, r1[k]!, N(n0, a0), N(n1, a1), N(n1, a0));
+        }
+      }
+    }
+  }
+
+  /** Эллипсоид (гөлгөр), z тэнхлэгээр rotZ, y тэнхлэгээр tilt (рад) эргүүлсэн */
+  ellipsoid(mat: string, c: V3, rx: number, ry: number, rz: number, rotZ = 0, tilt = 0, segs = 16, rings = 10): void {
+    const cz = Math.cos(rotZ), sz = Math.sin(rotZ), ct = Math.cos(tilt), st = Math.sin(tilt);
+    const xf = (p: V3): V3 => {
+      // tilt: x-z хавтгайд, дараа нь rotZ
+      const x1 = p[0] * ct - p[2] * st, z1 = p[0] * st + p[2] * ct;
+      return [c[0] + x1 * cz - p[1] * sz, c[1] + x1 * sz + p[1] * cz, c[2] + z1];
+    };
+    const nf = (n: V3): V3 => {
+      const x1 = n[0] * ct - n[2] * st, z1 = n[0] * st + n[2] * ct;
+      return [x1 * cz - n[1] * sz, x1 * sz + n[1] * cz, z1];
+    };
+    const pt = (i: number, k: number): [V3, V3] => {
+      const phi = (i / rings) * Math.PI, th = (k / segs) * Math.PI * 2;
+      const ux = Math.sin(phi) * Math.cos(th), uy = Math.sin(phi) * Math.sin(th), uz = Math.cos(phi);
+      const n: V3 = [ux / rx, uy / ry, uz / rz];
+      const l = Math.hypot(...n) || 1;
+      return [xf([ux * rx, uy * ry, uz * rz]), nf([n[0] / l, n[1] / l, n[2] / l])];
+    };
+    for (let i = 0; i < rings; i++)
+      for (let k = 0; k < segs; k++) {
+        const [a, na] = pt(i, k), [b, nb] = pt(i, k + 1), [c2, nc] = pt(i + 1, k + 1), [d, nd] = pt(i + 1, k);
+        if (i > 0) this.triangleN(mat, a, c2, b, na, nc, nb);
+        if (i < rings - 1) this.triangleN(mat, a, d, c2, na, nd, nc);
+      }
+  }
+
+  /** Хоёр цэгийн хоорондох нарийссан хоолой (мөч, хүзүү, сүүл) — гөлгөр */
+  tube(mat: string, p0: V3, p1: V3, r0: number, r1: number, segs = 12): void {
+    const d: V3 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    const L = Math.hypot(...d) || 1;
+    const ax: V3 = [d[0] / L, d[1] / L, d[2] / L];
+    const ref: V3 = Math.abs(ax[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const u = cross(ax, ref), ul = Math.hypot(...u) || 1;
+    const U: V3 = [u[0] / ul, u[1] / ul, u[2] / ul];
+    const V = cross(ax, U);
+    const ring = (p: V3, r: number, k: number): [V3, V3] => {
+      const a = (k / segs) * Math.PI * 2;
+      const n: V3 = [U[0] * Math.cos(a) + V[0] * Math.sin(a), U[1] * Math.cos(a) + V[1] * Math.sin(a), U[2] * Math.cos(a) + V[2] * Math.sin(a)];
+      return [[p[0] + n[0] * r, p[1] + n[1] * r, p[2] + n[2] * r], n];
+    };
+    for (let k = 0; k < segs; k++) {
+      const [a, na] = ring(p0, r0, k), [b, nb] = ring(p0, r0, k + 1), [c, nc] = ring(p1, r1, k + 1), [d2, nd] = ring(p1, r1, k);
+      this.triangleN(mat, a, b, c, na, nb, nc);
+      this.triangleN(mat, a, c, d2, na, nc, nd);
+    }
+    // төгсгөлийн таг
+    for (let k = 0; k < segs; k++) {
+      const [b] = ring(p1, r1, k), [c] = ring(p1, r1, k + 1);
+      this.triangle(mat, p1, b, c);
+      const [b0] = ring(p0, r0, k), [c0] = ring(p0, r0, k + 1);
+      this.triangle(mat, p0, c0, b0);
+    }
+  }
+
+  /**
+   * Профиль чирэлт: (v, z) профилийг u тэнхлэгийн дагуу u0→u1 чирнэ (карниз, молдинг, хөвөө).
+   * dir — u чиглэл, out — v чиглэл (хавтгай дээр), origin — (u=0, v=0) цэг.
+   */
+  sweep(mat: string, origin: [number, number], dir: [number, number], out: [number, number], u0: number, u1: number, profile: [number, number][], closed = true): void {
+    const P = (u: number, v: number, z: number): V3 => [origin[0] + dir[0] * u + out[0] * v, origin[1] + dir[1] * u + out[1] * v, z];
+    const pr = closed ? [...profile, profile[0]!] : profile;
+    for (let i = 0; i < pr.length - 1; i++) {
+      const [v0, z0] = pr[i]!, [v1, z1] = pr[i + 1]!;
+      this.quad(mat, P(u0, v0, z0), P(u1, v0, z0), P(u1, v1, z1), P(u0, v1, z1));
+    }
+    if (closed) {
+      // төгсгөлүүд (earcut-гүй: профиль гүдгэр гэж үзэж fan)
+      for (let i = 1; i < profile.length - 1; i++) {
+        const [va, za] = profile[0]!, [vb, zb] = profile[i]!, [vc, zc] = profile[i + 1]!;
+        this.triangle(mat, P(u0, va, za), P(u0, vc, zc), P(u0, vb, zb));
+        this.triangle(mat, P(u1, va, za), P(u1, vb, zb), P(u1, vc, zc));
+      }
+    }
+  }
+
   quad(mat: string, a: V3, b: V3, c: V3, d: V3): void {
     this.triangle(mat, a, b, c);
     this.triangle(mat, a, c, d);
@@ -182,30 +312,48 @@ export class GltfBuilder {
     }
     for (const [matName, p] of this.prims) {
       if (p.indices.length === 0) continue;
-      // glTF y-up: (x, y, z) → (x, z, −y)
-      const pos = new Float32Array(p.positions.length);
-      const nor = new Float32Array(p.normals.length);
+      // Орой нэгтгэх (ижил байрлал+нормал+uv → нэг орой): файлын хэмжээ 3–5 дахин багасна
+      const key2idx = new Map<string, number>();
+      const posA: number[] = [], norA: number[] = [], uvA: number[] = [];
+      const idxA: number[] = [];
+      const q = (v: number) => Math.round(v * 1000) / 1000;
+      for (const vi of p.indices) {
+        const x = p.positions[vi * 3]!, y = p.positions[vi * 3 + 1]!, z = p.positions[vi * 3 + 2]!;
+        const nx = p.normals[vi * 3]!, ny = p.normals[vi * 3 + 1]!, nz = p.normals[vi * 3 + 2]!;
+        const u = p.uvs[vi * 2]!, w = p.uvs[vi * 2 + 1]!;
+        const key = `${q(x)},${q(y)},${q(z)}|${q(nx)},${q(ny)},${q(nz)}|${q(u)},${q(w)}`;
+        let id = key2idx.get(key);
+        if (id === undefined) {
+          id = posA.length / 3;
+          key2idx.set(key, id);
+          // glTF y-up: (x, y, z) → (x, z, −y)
+          posA.push(x, z, -y);
+          norA.push(nx, nz, -ny);
+          uvA.push(u, w);
+        }
+        idxA.push(id);
+      }
+      const pos = new Float32Array(posA);
+      const nor = new Float32Array(norA);
+      const uv = new Float32Array(uvA);
+      const vcount = posA.length / 3;
       const min = [Infinity, Infinity, Infinity];
       const max = [-Infinity, -Infinity, -Infinity];
-      for (let i = 0; i < p.positions.length; i += 3) {
-        const x = p.positions[i]!, y = p.positions[i + 1]!, z = p.positions[i + 2]!;
-        pos[i] = x; pos[i + 1] = z; pos[i + 2] = -y;
+      for (let i = 0; i < pos.length; i += 3)
         for (let k = 0; k < 3; k++) {
           min[k] = Math.min(min[k]!, pos[i + k]!);
           max[k] = Math.max(max[k]!, pos[i + k]!);
         }
-        nor[i] = p.normals[i]!; nor[i + 1] = p.normals[i + 2]!; nor[i + 2] = -p.normals[i + 1]!;
-      }
-      const idx = new Uint32Array(p.indices);
-      const uv = new Float32Array(p.uvs);
+      const use16 = vcount < 65535;
+      const idx = use16 ? new Uint16Array(idxA) : new Uint32Array(idxA);
       const pv = pushView(new Uint8Array(pos.buffer), 34962);
       const nv = pushView(new Uint8Array(nor.buffer), 34962);
       const uvv = pushView(new Uint8Array(uv.buffer), 34962);
       const iv = pushView(new Uint8Array(idx.buffer), 34963);
-      accessors.push({ bufferView: pv, componentType: 5126, count: p.vertexCount, type: 'VEC3', min, max });
-      accessors.push({ bufferView: nv, componentType: 5126, count: p.vertexCount, type: 'VEC3' });
-      accessors.push({ bufferView: uvv, componentType: 5126, count: p.vertexCount, type: 'VEC2' });
-      accessors.push({ bufferView: iv, componentType: 5125, count: idx.length, type: 'SCALAR' });
+      accessors.push({ bufferView: pv, componentType: 5126, count: vcount, type: 'VEC3', min, max });
+      accessors.push({ bufferView: nv, componentType: 5126, count: vcount, type: 'VEC3' });
+      accessors.push({ bufferView: uvv, componentType: 5126, count: vcount, type: 'VEC2' });
+      accessors.push({ bufferView: iv, componentType: use16 ? 5123 : 5125, count: idx.length, type: 'SCALAR' });
       const a = accessors.length;
       primitives.push({ attributes: { POSITION: a - 4, NORMAL: a - 3, TEXCOORD_0: a - 2 }, indices: a - 1, material: this.materials.findIndex((m) => m.name === matName), mode: 4 });
     }
@@ -250,6 +398,10 @@ export class GltfBuilder {
     out.set(bin, binOff + 8);
     return out;
   }
+}
+
+function cross(a: V3, b: V3): V3 {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
 
 function normal(a: V3, b: V3, c: V3): V3 {
