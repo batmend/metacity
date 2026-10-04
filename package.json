@@ -1,0 +1,22 @@
+{
+  "name": "metacity",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Meta City — Улаанбаатар хотын digital twin платформ",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @metacity/web dev",
+    "build": "pnpm tiles:demo && pnpm style:build && pnpm --filter @metacity/web build",
+    "preview": "pnpm --filter @metacity/web preview",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "pnpm -r test",
+    "seed": "pnpm --filter @metacity/tiles seed",
+    "tiles:demo": "pnpm --filter @metacity/tiles build:demo",
+    "style:build": "pnpm --filter @metacity/style build"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsx": "^4.23.15"
+  }
+}

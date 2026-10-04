@@ -1,0 +1,4 @@
+Noto Sans — SIL Open Font License 1.1 (https://scripts.sil.org/OFL)
+Glyph PBF-ууд: https://github.com/openmaptiles/fonts (v2.0)
+Зөвхөн Латин (0-511), Кирилл (1024-1279, Ө/Ү багтана), ерөнхий цэг тэмдэг (8192-8447) мужууд.
+Бусад муж хэрэгтэй бол packages/tiles/scripts/fetch-fonts.sh ажиллуулна.

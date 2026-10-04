@@ -1,0 +1,112 @@
+# planetiler схемийн тестүүд (OSM өгөгдөлгүйгээр): scripts/verify-schema.sh
+examples:
+  - name: Нуур → water/lake
+    input:
+      source: osm
+      geometry: polygon
+      tags: { natural: water, name: Хүүхдийн парк нуур }
+    output:
+      layer: water
+      min_zoom: 6
+      tags: { class: lake, name: Хүүхдийн парк нуур }
+
+  - name: Гол (water=river) → water/river
+    input:
+      source: osm
+      geometry: polygon
+      tags: { natural: water, water: river, name: Туул гол }
+    output:
+      layer: water
+      tags: { class: river, name: Туул гол }
+
+  - name: Өргөн чөлөө → transportation/primary z8
+    input:
+      source: osm
+      geometry: line
+      tags: { highway: primary, name: Энх тайвны өргөн чөлөө, "name:en": Peace Avenue, lanes: "6", oneway: "no" }
+    output:
+      layer: transportation
+      min_zoom: 8
+      tags: { class: primary, name: Энх тайвны өргөн чөлөө, name_en: Peace Avenue, lanes: 6 }
+      allow_extra_tags: false
+
+  - name: Нэг чиглэлтэй үйлчилгээний зам z14
+    input:
+      source: osm
+      geometry: line
+      tags: { highway: service, oneway: "yes", bridge: "yes" }
+    output:
+      layer: transportation
+      min_zoom: 14
+      tags: { class: service, oneway: 1, bridge: 1 }
+
+  - name: Төрийн ордон → building/government + poi
+    input:
+      source: osm
+      geometry: polygon
+      tags: { building: government, name: Төрийн ордон, "name:en": Government Palace, height: "35", "building:levels": "6", "addr:street": Сүхбаатарын талбай, "addr:housenumber": "1" }
+    output:
+      - layer: building
+        min_zoom: 13
+        tags: { class: government, name: Төрийн ордон, name_en: Government Palace, height: 35.0, levels: 6, addr: Сүхбаатарын талбай 1 }
+      - layer: poi
+        min_zoom: 14
+        tags: { class: office, rank: 4, name: Төрийн ордон }
+
+  - name: Нэргүй орон сууц → building/residential (poi үгүй)
+    input:
+      source: osm
+      geometry: polygon
+      tags: { building: apartments, "building:levels": "9" }
+    output:
+      layer: building
+      tags: { class: residential, levels: 9 }
+
+  - name: Эмнэлэг POI
+    input:
+      source: osm
+      geometry: point
+      tags: { amenity: hospital, name: Нийслэлийн эмнэлэг }
+    output:
+      layer: poi
+      min_zoom: 12
+      tags: { class: hospital, rank: 2, name: Нийслэлийн эмнэлэг }
+
+  - name: Автобусны буудал rank 4
+    input:
+      source: osm
+      geometry: point
+      tags: { highway: bus_stop, name: Их дэлгүүр }
+    output:
+      layer: poi
+      tags: { class: bus_stop, rank: 4 }
+
+  - name: Дүүрэг → place/district
+    input:
+      source: osm
+      geometry: point
+      tags: { place: suburb, name: Сүхбаатар дүүрэг }
+    output:
+      layer: place
+      min_zoom: 9
+      tags: { class: district, rank: 2, name: Сүхбаатар дүүрэг }
+
+  - name: Дүүргийн хил z10
+    input:
+      source: osm
+      geometry: line
+      tags: { boundary: administrative, admin_level: "6", name: Сүхбаатар }
+    output:
+      layer: boundary
+      min_zoom: 10
+      tags: { admin_level: 6, name: Сүхбаатар }
+
+  - name: Парк → landuse/park
+    input:
+      source: osm
+      geometry: polygon
+      tags: { leisure: park, name: Үндэсний соёл амралтын хүрээлэн }
+    output:
+      layer: landuse
+      min_zoom: 9
+      tags: { class: park, name: Үндэсний соёл амралтын хүрээлэн }

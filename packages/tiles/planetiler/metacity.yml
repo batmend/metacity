@@ -1,0 +1,314 @@
+# Meta City — OSM → PMTiles (planetiler custom schema)
+#
+# Хэрэглээ: packages/tiles/scripts/build-osm.sh  (docs/DATA-PIPELINE.md)
+# Давхарга/атрибутын гэрээ: packages/schema/src/index.ts (TILE_SCHEMA_VERSION = 1)
+#
+# Зарчим: давхарга бүр, feature бүр min_zoom-той. Бага zoom дээр зөвхөн
+# том/чухал объект орно → нэг tile-ийн хэмжээ хотын хэмжээнээс хамаарахгүй.
+schema_name: Meta City
+schema_description: Улаанбаатар хотын digital twin суурь давхаргууд (schema v1)
+attribution: <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a> &middot; Meta City
+# Схемийн тестүүд (scripts/verify-schema.sh)
+examples: metacity.spec.yml
+
+sources:
+  osm:
+    type: osm
+    url: geofabrik:mongolia
+    local_path: data/sources/mongolia.osm.pbf
+
+tag_mappings:
+  building:levels: long
+  height: double
+  min_height: double
+  lanes: long
+  layer: long
+  admin_level: long
+
+layers:
+  # ------------------------------------------------------------------ water
+  - id: water
+    features:
+      - source: osm
+        geometry: polygon
+        min_zoom: 6
+        include_when:
+          natural: water
+          landuse: reservoir
+          waterway: riverbank
+        attributes:
+          - key: class
+            value:
+              default_value: lake
+              overrides:
+                river:
+                  water: river
+                  waterway: riverbank
+                pond: { water: pond }
+          - key: name
+          - key: name_en
+            tag_value: name:en
+
+  - id: waterway
+    features:
+      - source: osm
+        geometry: line
+        min_zoom: 9
+        include_when:
+          waterway: [river, stream, canal]
+        attributes:
+          - key: class
+            tag_value: waterway
+          - key: name
+
+  # ---------------------------------------------------------------- landuse
+  - id: landuse
+    features:
+      - source: osm
+        geometry: polygon
+        min_zoom: 9
+        min_size: 1
+        include_when:
+          leisure: [park, garden, playground, pitch]
+          landuse: [grass, residential, commercial, retail, industrial, cemetery]
+          amenity: [school, kindergarten, university, hospital, parking]
+          highway: pedestrian
+        attributes:
+          - key: class
+            value:
+              default_value: grass
+              overrides:
+                park: { leisure: [park, garden, playground, pitch] }
+                residential: { landuse: residential }
+                commercial: { landuse: [commercial, retail] }
+                industrial: { landuse: industrial }
+                cemetery: { landuse: cemetery }
+                school: { amenity: [school, kindergarten, university] }
+                hospital: { amenity: hospital }
+                parking: { amenity: parking }
+                pedestrian: { highway: pedestrian }
+          - key: name
+
+  # --------------------------------------------------------- transportation
+  - id: transportation
+    features:
+      - source: osm
+        geometry: line
+        include_when:
+          highway:
+            [motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link, tertiary, tertiary_link, residential, unclassified, living_street, service, footway, path, pedestrian, cycleway, steps]
+          railway: [rail, light_rail, narrow_gauge]
+        # zoom бүр дээр юу орох (schema.includeAtZoom-той ижил логик)
+        min_zoom:
+          default_value: 12
+          overrides:
+            6: { highway: [motorway, motorway_link, trunk, trunk_link] }
+            8: { highway: [primary, primary_link] }
+            9: { railway: __any__ }
+            10: { highway: [secondary, secondary_link] }
+            11: { highway: [tertiary, tertiary_link] }
+            14: { highway: [service, footway, path, pedestrian, cycleway, steps] }
+        attributes:
+          - key: class
+            value:
+              default_value: residential
+              overrides:
+                motorway: { highway: [motorway, motorway_link] }
+                trunk: { highway: [trunk, trunk_link] }
+                primary: { highway: [primary, primary_link] }
+                secondary: { highway: [secondary, secondary_link] }
+                tertiary: { highway: [tertiary, tertiary_link] }
+                service: { highway: service }
+                path: { highway: [footway, path, pedestrian, cycleway, steps] }
+                rail: { railway: __any__ }
+          - key: name
+          - key: name_en
+            tag_value: name:en
+          - key: oneway
+            value: 1
+            include_when: { oneway: [yes, "1", "true"] }
+          - key: bridge
+            value: 1
+            include_when: { bridge: __any__ }
+            exclude_when: { bridge: no }
+          - key: tunnel
+            value: 1
+            include_when: { tunnel: __any__ }
+            exclude_when: { tunnel: no }
+          - key: lanes
+            type: long
+
+  # --------------------------------------------------------------- building
+  - id: building
+    features:
+      - source: osm
+        geometry: polygon
+        min_zoom: 13
+        # z13: ≥2500 м² эсвэл нэртэй; z14: ≥600 м²; z15: бүгд (min_size = tile pixel)
+        min_size:
+          default_value: 0
+          overrides:
+            6: { building: __any__ }
+        include_when:
+          building: __any__
+        exclude_when:
+          building: no
+        attributes:
+          - key: id
+            value: ${feature.id}
+            type: long
+          - key: class
+            value:
+              default_value: other
+              overrides:
+                residential: { building: [residential, apartments, house, detached, dormitory, terrace] }
+                commercial: { building: [commercial, retail, supermarket, kiosk] }
+                office: { building: office }
+                government: { building: [government, public, civic] }
+                cultural: { building: [theatre, museum] }
+                education: { building: [school, university, kindergarten, college] }
+                health: { building: hospital }
+                hotel: { building: hotel }
+                religious: { building: [temple, church, mosque, monastery] }
+                industrial: { building: [industrial, warehouse, factory] }
+          - key: height
+            type: double
+          - key: min_height
+            type: double
+          - key: levels
+            tag_value: building:levels
+            type: long
+          - key: name
+          - key: name_en
+            tag_value: name:en
+          - key: addr
+            value: ${coalesce(feature.tags["addr:street"], "") + " " + coalesce(feature.tags["addr:housenumber"], "")}
+            include_when: { addr:street: __any__ }
+
+  # -------------------------------------------------------------------- poi
+  # Барилгын нэр энд цэгээр гарна (polygon дээр нэр тавихгүй → tile зааг дээр давхардахгүй)
+  - id: poi
+    features:
+      - source: osm
+        geometry: point
+        min_zoom: 12
+        include_when:
+          amenity: [townhall, post_office, bank, hospital, clinic, pharmacy, school, kindergarten, university, college, police, theatre, library, place_of_worship, restaurant, cafe, parking]
+          tourism: [museum, hotel, attraction]
+          shop: __any__
+          highway: bus_stop
+          historic: [monument, memorial]
+          office: government
+        attributes:
+          - key: id
+            value: ${feature.id}
+            type: long
+          - key: class
+            value:
+              default_value: shop
+              overrides:
+                government: { amenity: townhall, office: government }
+                post: { amenity: post_office }
+                bank: { amenity: bank }
+                hospital: { amenity: [hospital, clinic] }
+                pharmacy: { amenity: pharmacy }
+                school: { amenity: school }
+                kindergarten: { amenity: kindergarten }
+                university: { amenity: [university, college] }
+                police: { amenity: police }
+                theatre: { amenity: theatre }
+                culture: { amenity: library }
+                temple: { amenity: place_of_worship }
+                restaurant: { amenity: [restaurant, cafe] }
+                parking: { amenity: parking }
+                museum: { tourism: museum }
+                hotel: { tourism: hotel }
+                monument: { historic: [monument, memorial], tourism: attraction }
+                bus_stop: { highway: bus_stop }
+          - key: rank
+            value:
+              default_value: 5
+              overrides:
+                1: { amenity: townhall, office: government }
+                2: { amenity: [hospital, theatre, post_office], tourism: museum }
+                3: { amenity: [bank, school, university, college, police, library], tourism: hotel }
+                4: { highway: bus_stop, amenity: [kindergarten, pharmacy, parking] }
+            type: long
+          - key: name
+          - key: name_en
+            tag_value: name:en
+      # Нэртэй барилгын төв цэг — барилгын нэрийн шошго
+      - source: osm
+        geometry: polygon_centroid_if_convex
+        min_zoom: 14
+        include_when:
+          __all__:
+            - building: __any__
+            - name: __any__
+        exclude_when:
+          building: no
+        attributes:
+          - key: id
+            value: ${feature.id}
+            type: long
+          - key: class
+            value: office
+          - key: rank
+            value: 4
+            type: long
+          - key: name
+          - key: name_en
+            tag_value: name:en
+          - key: building
+            value: ${feature.id}
+            type: long
+
+  # ------------------------------------------------------------------ place
+  - id: place
+    features:
+      - source: osm
+        geometry: point
+        include_when:
+          place: [city, suburb, quarter, neighbourhood, square]
+        min_zoom:
+          default_value: 12
+          overrides:
+            6: { place: city }
+            9: { place: suburb }
+        attributes:
+          - key: class
+            value:
+              default_value: neighbourhood
+              overrides:
+                city: { place: city }
+                district: { place: suburb }
+                khoroo: { place: quarter }
+                square: { place: square }
+          - key: rank
+            value:
+              default_value: 4
+              overrides:
+                1: { place: city }
+                2: { place: suburb }
+                3: { place: [quarter, square] }
+            type: long
+          - key: name
+          - key: name_en
+            tag_value: name:en
+
+  # --------------------------------------------------------------- boundary
+  - id: boundary
+    features:
+      - source: osm
+        geometry: line
+        include_when:
+          boundary: administrative
+        min_zoom:
+          default_value: 12
+          overrides:
+            6: { admin_level: 4 }
+            10: { admin_level: 6 }
+        attributes:
+          - key: admin_level
+            type: long
+          - key: name

@@ -1,0 +1,27 @@
+{
+  "name": "@metacity/tiles",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Meta City газрын зургийн үйлдвэр: GeoJSON/OSM → PMTiles (vector tiles)",
+  "scripts": {
+    "seed": "tsx src/seed/cli.ts",
+    "build:demo": "tsx src/cli.ts demo",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@metacity/schema": "workspace:*",
+    "@maplibre/geojson-vt": "^6.1.1",
+    "@maplibre/vt-pbf": "^4.3.2",
+    "@mapbox/vector-tile": "^3.0.0",
+    "pbf": "^5.1.2",
+    "pmtiles": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
