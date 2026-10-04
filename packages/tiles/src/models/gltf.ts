@@ -114,9 +114,10 @@ export class GltfBuilder {
       if (f[0] === l[0] && f[1] === l[1]) out.pop();
       return out;
     });
-    // хана
-    for (const ring of clean) {
-      const ccw = signedArea(ring) > 0;
+    // хана: гадна цагирагийн хана гадагш, нүхний (хашааны) хана хашаа руу харна
+    for (let r = 0; r < clean.length; r++) {
+      const ring = clean[r]!;
+      const ccw = r === 0 ? signedArea(ring) > 0 : signedArea(ring) < 0;
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i]!;
         const b = ring[(i + 1) % ring.length]!;
