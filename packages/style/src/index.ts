@@ -327,6 +327,8 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
   ] as unknown as ExpressionSpecification;
   const buildingColor: DataDrivenPropertyValueSpecification<string> = [
     'case',
+    ['boolean', ['feature-state', 'hidden'], false],
+    'rgba(0,0,0,0)', // нарийвчилсан 3D загвар харуулж буй барилга: суурь extrusion бүрэн тунгалаг
     ['boolean', ['feature-state', 'selected'], false],
     P.buildingSelected,
     ['boolean', ['feature-state', 'hover'], false],

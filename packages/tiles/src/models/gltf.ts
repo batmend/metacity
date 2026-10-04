@@ -11,6 +11,10 @@ export interface Material {
   color: [number, number, number, number?];
   metallic?: number;
   roughness?: number;
+  /** Texture (PNG) — UV нь tri-planar: тухайн гадаргуун дээрх метр / uvScale */
+  texture?: { png: Uint8Array; width: number; height: number };
+  /** Texture нэг удаа давтагдах хэмжээ (м) */
+  uvScale?: number;
 }
 
 type V3 = [number, number, number];
@@ -18,6 +22,7 @@ type V3 = [number, number, number];
 class Prim {
   positions: number[] = [];
   normals: number[] = [];
+  uvs: number[] = [];
   indices: number[] = [];
   get vertexCount(): number {
     return this.positions.length / 3;
@@ -47,9 +52,17 @@ export class GltfBuilder {
     const p = this.prim(mat);
     const n = normal(a, b, c);
     const base = p.vertexCount;
+    const scale = this.materials.find((m) => m.name === mat)?.uvScale ?? 4;
+    const ax = Math.abs(n[0]), ay = Math.abs(n[1]), az = Math.abs(n[2]);
     for (const v of [a, b, c]) {
       p.positions.push(v[0], v[1], v[2]);
       p.normals.push(n[0], n[1], n[2]);
+      // tri-planar UV: хамгийн их нормалын тэнхлэгийг орхиж үлдсэн хоёрыг ашиглана; босоо хананд v = z
+      let u: number, w: number;
+      if (az >= ax && az >= ay) { u = v[0]; w = v[1]; }
+      else if (ax >= ay) { u = v[1]; w = v[2]; }
+      else { u = v[0]; w = v[2]; }
+      p.uvs.push(u / scale, 1 - w / scale);
     }
     p.indices.push(base, base + 1, base + 2);
   }
@@ -151,11 +164,21 @@ export class GltfBuilder {
     const pushView = (bytes: Uint8Array, target: number): number => {
       const pad = (4 - (bytes.length % 4)) % 4;
       const padded = pad ? concat([bytes, new Uint8Array(pad)]) : bytes;
-      bufferViews.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, target });
+      bufferViews.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, ...(target ? { target } : {}) });
       chunks.push(padded);
       offset += padded.length;
       return bufferViews.length - 1;
     };
+    const images: unknown[] = [];
+    const textures: unknown[] = [];
+    const textureIndex = new Map<string, number>();
+    for (const m of this.materials) {
+      if (!m.texture) continue;
+      const iv = pushView(m.texture.png, 0);
+      images.push({ bufferView: iv, mimeType: 'image/png', name: m.name });
+      textures.push({ source: images.length - 1, sampler: 0 });
+      textureIndex.set(m.name, textures.length - 1);
+    }
     for (const [matName, p] of this.prims) {
       if (p.indices.length === 0) continue;
       // glTF y-up: (x, y, z) → (x, z, −y)
@@ -173,14 +196,17 @@ export class GltfBuilder {
         nor[i] = p.normals[i]!; nor[i + 1] = p.normals[i + 2]!; nor[i + 2] = -p.normals[i + 1]!;
       }
       const idx = new Uint32Array(p.indices);
+      const uv = new Float32Array(p.uvs);
       const pv = pushView(new Uint8Array(pos.buffer), 34962);
       const nv = pushView(new Uint8Array(nor.buffer), 34962);
+      const uvv = pushView(new Uint8Array(uv.buffer), 34962);
       const iv = pushView(new Uint8Array(idx.buffer), 34963);
       accessors.push({ bufferView: pv, componentType: 5126, count: p.vertexCount, type: 'VEC3', min, max });
       accessors.push({ bufferView: nv, componentType: 5126, count: p.vertexCount, type: 'VEC3' });
+      accessors.push({ bufferView: uvv, componentType: 5126, count: p.vertexCount, type: 'VEC2' });
       accessors.push({ bufferView: iv, componentType: 5125, count: idx.length, type: 'SCALAR' });
       const a = accessors.length;
-      primitives.push({ attributes: { POSITION: a - 3, NORMAL: a - 2 }, indices: a - 1, material: this.materials.findIndex((m) => m.name === matName), mode: 4 });
+      primitives.push({ attributes: { POSITION: a - 4, NORMAL: a - 3, TEXCOORD_0: a - 2 }, indices: a - 1, material: this.materials.findIndex((m) => m.name === matName), mode: 4 });
     }
     const bin = concat(chunks);
     const json = {
@@ -191,10 +217,16 @@ export class GltfBuilder {
       meshes: [{ name, primitives }],
       materials: this.materials.map((m) => ({
         name: m.name,
-        pbrMetallicRoughness: { baseColorFactor: [m.color[0], m.color[1], m.color[2], m.color[3] ?? 1], metallicFactor: m.metallic ?? 0, roughnessFactor: m.roughness ?? 0.85 },
+        pbrMetallicRoughness: {
+          baseColorFactor: [m.color[0], m.color[1], m.color[2], m.color[3] ?? 1],
+          metallicFactor: m.metallic ?? 0,
+          roughnessFactor: m.roughness ?? 0.85,
+          ...(textureIndex.has(m.name) ? { baseColorTexture: { index: textureIndex.get(m.name), texCoord: 0 } } : {}),
+        },
         ...(m.color[3] !== undefined && m.color[3] < 1 ? { alphaMode: 'BLEND' } : {}),
         doubleSided: false,
       })),
+      ...(images.length ? { images, textures, samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }] } : {}),
       buffers: [{ byteLength: bin.length }],
       bufferViews,
       accessors,

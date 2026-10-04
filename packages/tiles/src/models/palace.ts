@@ -1,10 +1,13 @@
 /**
  * Төрийн ордон (Government Palace) — нарийвчилсан 3D загвар (LOD 2).
  *
- * Бодит OSM footprint (way/4432623, 6 дотоод хашаатай) дээр суурилж процедурын аргаар
- * босгоно: үндсэн корпус, цонхны эгнээ, урд талын цагаан баганат колоннад (2006), төв
- * портик, Чингис хааны хөшөөний суурь, туг. Энэ бол фотограмметр/BIM загвар орж ирэх
- * хүртэлх ЗАВСРЫН загвар: хэмжээ, байршил бодит; архитектурын нарийн хэлбэр ойролцоо.
+ * Бодит OSM footprint (way/4432623) + урд фасадын гэрэл зураг дээр суурилсан procedural загвар.
+ * Бүтэц (зургаас): бүх уртаараа өргөн боржин шат → 2 м тавцан; цайвар элсэн өнгийн нарийн
+ * багана (алтан капитель) бүхий колоннад, ард нь бүтэн өндөр ХАР НОГООН ШИЛЭН фасад; энтаблатур
+ * дээр алтан судал; хоёр зах + төвийн хоёр талд өндөрлөг шилэн павильон (хавтгай таг); төвд
+ * нуман хонгил дотор Чингис хааны суугаа хөшөө, хоёр талд нь Боорчу, Мухулайн морьт хөшөө;
+ * Өгэдэй, Хубилай хоёр захын павильонд; төвийн блок хамгийн өндөр, дээр нь туг.
+ * Texture: элсэн чулуу, шил (хуваалттай), боржин, хүрэл; алт — металлик материал.
  *
  * Координат: загварын гарал (0,0) = footprint-ийн төв (anchor lng/lat), x=зүүн, y=хойд, метр.
  */
@@ -12,6 +15,7 @@ import type { Position } from 'geojson';
 import { metersPerDegree } from '../geo.js';
 import type { LandmarkModel } from '@metacity/schema';
 import { GltfBuilder, signedArea, type Material } from './gltf.js';
+import { bronzeTexture, glassTexture, graniteTexture, marbleTexture, plasterTexture, roofTexture } from './png.js';
 
 /** OSM way/4432623 (planetiler гаралтаас, WGS84) */
 export const PALACE_FOOTPRINT: Position[][] = [
@@ -30,135 +34,205 @@ export const CHINGGIS_STATUE: Position = [106.91741645336151, 47.919933633419305
 export type ModelDef = LandmarkModel;
 
 const M = {
-  wall: { name: 'wall', color: [0.9, 0.86, 0.78] } satisfies Material,
-  wallDark: { name: 'wall-dark', color: [0.72, 0.68, 0.6] } satisfies Material,
-  roof: { name: 'roof', color: [0.5, 0.5, 0.52], roughness: 0.95 } satisfies Material,
-  glass: { name: 'glass', color: [0.2, 0.3, 0.42, 0.9], metallic: 0.2, roughness: 0.25 } satisfies Material,
-  column: { name: 'column', color: [0.97, 0.96, 0.93], roughness: 0.6 } satisfies Material,
-  granite: { name: 'granite', color: [0.45, 0.45, 0.47], roughness: 0.7 } satisfies Material,
-  bronze: { name: 'bronze', color: [0.45, 0.33, 0.18], metallic: 0.6, roughness: 0.45 } satisfies Material,
+  stone: { name: 'stone', color: [1, 1, 1], texture: plasterTexture(1), uvScale: 5, roughness: 0.85 } satisfies Material,
+  stoneLight: { name: 'stone-light', color: [0.9, 0.87, 0.8], roughness: 0.75 } satisfies Material,
+  roof: { name: 'roof', color: [1, 1, 1], texture: roofTexture(), uvScale: 6, roughness: 0.95 } satisfies Material,
+  glass: { name: 'glass', color: [1, 1, 1], texture: glassTexture(), uvScale: 2.6, metallic: 0.2, roughness: 0.25 } satisfies Material,
+  marble: { name: 'marble', color: [1, 1, 1], texture: marbleTexture(), uvScale: 3, roughness: 0.6 } satisfies Material,
+  granite: { name: 'granite', color: [1, 1, 1], texture: graniteTexture(), uvScale: 2, roughness: 0.7 } satisfies Material,
+  bronze: { name: 'bronze', color: [0.55, 0.5, 0.45], texture: bronzeTexture(), uvScale: 1.5, metallic: 0.5, roughness: 0.55 } satisfies Material,
+  gold: { name: 'gold', color: [0.85, 0.68, 0.3], metallic: 0.85, roughness: 0.35 } satisfies Material,
   flag: { name: 'flag', color: [0.8, 0.12, 0.16] } satisfies Material,
   pole: { name: 'pole', color: [0.8, 0.8, 0.82], metallic: 0.8, roughness: 0.3 } satisfies Material,
+  dark: { name: 'dark', color: [0.42, 0.4, 0.4], roughness: 0.7 } satisfies Material,
 };
+
+type P2 = [number, number];
+const add = (a: P2, b: P2, k = 1): P2 => [a[0] + b[0] * k, a[1] + b[1] * k];
 
 export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnType<GltfBuilder['stats']> } {
   const outer = PALACE_FOOTPRINT[0]!;
-  // anchor = гадна цагирагийн төв
   const n = outer.length - 1;
   let sx = 0, sy = 0;
   for (let i = 0; i < n; i++) { sx += outer[i]![0]!; sy += outer[i]![1]!; }
   const anchor = { lng: sx / n, lat: sy / n };
   const mpd = metersPerDegree(anchor.lat);
-  const toLocal = ([lng, lat]: Position): [number, number] => [(lng! - anchor.lng) * mpd.lng, (lat! - anchor.lat) * mpd.lat];
+  const toLocal = ([lng, lat]: Position): P2 => [(lng! - anchor.lng) * mpd.lng, (lat! - anchor.lat) * mpd.lat];
   const rings = PALACE_FOOTPRINT.map((r) => r.map(toLocal));
+  const outerRing = rings[0]!;
 
+  // ---- Урд фасадын шугам: чиглэлийг хамгийн урт урд хэрчмээс, уртыг урд талын БҮХ оройноос ----
+  // (OSM footprint-ийн урд хана 3 хэсэгтэй, хоорондоо 5 м-ээр хазайсан тул нэг хэрчим хангалтгүй)
+  let longest: { a: P2; b: P2; len: number } | null = null;
+  for (let i = 0; i < outerRing.length - 1; i++) {
+    const a = outerRing[i]!, b = outerRing[i + 1]!;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const horizontal = Math.abs(b[1] - a[1]) < Math.abs(b[0] - a[0]) * 0.5; // баруун-зүүн чиглэлтэй хана л
+    if (horizontal && (a[1] + b[1]) / 2 < -60 && (!longest || len > longest.len)) longest = a[0] < b[0] ? { a, b, len } : { a: b, b: a, len };
+  }
+  if (!longest) throw new Error('урд фасад олдсонгүй');
+  const ang = Math.atan2(longest.b[1] - longest.a[1], longest.b[0] - longest.a[0]);
+  const dir: P2 = [Math.cos(ang), Math.sin(ang)];
+  const out: P2 = [Math.sin(ang), -Math.cos(ang)]; // урагш (талбай руу)
+  const proj = (p: P2) => ({ u: p[0] * dir[0] + p[1] * dir[1], v: p[0] * out[0] + p[1] * out[1] });
+  const maxV = Math.max(...outerRing.map((p) => proj(p).v));
+  const front = outerRing.filter((p) => proj(p).v > maxV - 8); // урд ханын оройнууд
+  const us = front.map((p) => proj(p).u);
+  const uMin = Math.min(...us), uMax = Math.max(...us);
+  const fLen = uMax - uMin;
+  const fMid: P2 = [dir[0] * ((uMin + uMax) / 2) + out[0] * (maxV - 1), dir[1] * ((uMin + uMax) / 2) + out[1] * (maxV - 1)];
+  const F = (u: number, v: number, base: P2 = fMid): P2 => add(add(base, dir, u), out, v);
+  const distToFacade = (p: P2): number => (p[0] - fMid[0]) * out[0] + (p[1] - fMid[1]) * out[1];
+  /** фасадтай параллель хайрцаг (u = фасад дагуу төв, v = урагш төв) */
   const g = new GltfBuilder();
   for (const m of Object.values(M)) g.material(m);
+  const B = (mat: string, u: number, v: number, z: number, w: number, d: number, h: number) => {
+    const c = F(u, v);
+    g.box(mat, c[0], c[1], z, w, d, h, ang);
+  };
+  const CYL = (mat: string, u: number, v: number, z: number, r: number, h: number, rTop = r, seg = 14) => {
+    const c = F(u, v);
+    g.cylinder(mat, c[0], c[1], z, r, h, seg, rTop);
+  };
 
-  const BODY_H = 24; // ~5 давхар + парапет
-  g.extrude('wall', 'roof', rings, 0, BODY_H);
-  // парапет (дээврийн захын хашлага)
-  for (const ring of rings) {
-    for (let i = 0; i < ring.length - 1; i++) {
-      const a = ring[i]!, b = ring[i + 1]!;
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (len < 2) continue;
-      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-      g.box('wall-dark', (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, BODY_H, len, 0.6, 1.1, ang);
-    }
-  }
+  // ---- Хэмжээс (зургаас тооцсон) ----
+  const PLAT_H = 2.0; // тавцан
+  const GAL_D = 9; // колоннадаас шилэн фасад хүртэлх гүн
+  const COL_H = 13.5; // баганын өндөр (тавцангаас)
+  const ENT_H = 2.0; // энтаблатур
+  const ROOF_Z = PLAT_H + COL_H + ENT_H; // галерейн дээврийн түвшин ≈ 17.5
+  const PAV_H = 6.5; // павильоны нэмэлт өндөр
+  const CENTER_W = 34; // төвийн блокийн өргөн
+  const PAV_W = 20; // павильоны өргөн
+  const endPav = fLen / 2 - PAV_W / 2 - 1; // захын павильоны төв (u)
+  const innerPav = CENTER_W / 2 + PAV_W / 2 + 2; // төвийн хажуугийн павильон
 
-  // Цонхны эгнээ: гадна цагирагийн 12 м-ээс урт хана бүр дээр, 5 давхар
-  const outerRing = rings[0]!;
-  const ccw = signedArea(outerRing.slice(0, -1)) > 0;
-  const centroid: [number, number] = [0, 0];
-  const windowsFloors = [3.2, 7.4, 11.6, 15.8, 20.0];
-  // урд (өмнөд) хана: колоннадтай тул цонх тавихгүй
-  const southWallIdx = new Set<number>();
-  for (let i = 0; i < outerRing.length - 1; i++) {
-    const a = outerRing[i]!, b = outerRing[i + 1]!;
+  // ---- Үндсэн корпус (ар талд): footprint-ийн урд GAL_D зурвасыг галерейд үлдээнэ ----
+  const bodyRings = rings.map((ring, ri) => ring.map((p) => (ri === 0 && distToFacade(p) > -3 ? add(p, out, -GAL_D) : p)));
+  const BODY_H = ROOF_Z;
+  g.extrude('stone', 'roof', bodyRings, 0, BODY_H);
+  // дотоод хашааны шал (хучилт) — доорх газрын зураг харагдахгүй
+  for (const hole of bodyRings.slice(1)) g.extrude('granite', 'granite', [hole], 0, 0.3);
+  // корпусын хажуу/ар ханын цонх (3 давхар)
+  const bodyOuter = bodyRings[0]!;
+  const ccw = signedArea(bodyOuter.slice(0, -1)) > 0;
+  for (let i = 0; i < bodyOuter.length - 1; i++) {
+    const a = bodyOuter[i]!, b = bodyOuter[i + 1]!;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 9) continue;
     const my = (a[1] + b[1]) / 2;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (my < -60 && len > 40) southWallIdx.add(i);
-  }
-  for (let i = 0; i < outerRing.length - 1; i++) {
-    if (southWallIdx.has(i)) continue;
-    const a = outerRing[i]!, b = outerRing[i + 1]!;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (len < 12) continue;
-    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    // гадагш нормал
+    if (distToFacade([ (a[0] + b[0]) / 2, my ]) > -GAL_D - 2) continue; // урд хана = шил, доор тусад нь
+    const sa = Math.atan2(b[1] - a[1], b[0] - a[0]);
     let nx = -(b[1] - a[1]) / len, ny = (b[0] - a[0]) / len;
     if (!ccw) { nx = -nx; ny = -ny; }
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-    if ((mx - centroid[0]) * nx + (my - centroid[1]) * ny < 0) { nx = -nx; ny = -ny; }
-    const count = Math.floor((len - 3) / 4.2);
-    const step = (len - 3) / count;
+    const mx = (a[0] + b[0]) / 2;
+    if (mx * nx + my * ny < 0) { nx = -nx; ny = -ny; }
+    const count = Math.max(1, Math.floor((len - 2) / 4.6));
+    const step = (len - 2) / count;
     for (let k = 0; k < count; k++) {
-      const t = (1.5 + step * (k + 0.5)) / len;
-      const cx = a[0] + (b[0] - a[0]) * t + nx * 0.12;
-      const cy = a[1] + (b[1] - a[1]) * t + ny * 0.12;
-      for (const z of windowsFloors) g.box('glass', cx, cy, z, 1.9, 0.3, 2.5, ang);
+      const t = (1 + step * (k + 0.5)) / len;
+      const cx = a[0] + (b[0] - a[0]) * t, cy = a[1] + (b[1] - a[1]) * t;
+      for (const z of [2.2, 7.4, 12.6]) g.box('glass', cx + nx * 0.05, cy + ny * 0.05, z, 2.0, 0.25, 3.0, sa);
     }
+    g.box('gold', mx + nx * 0.1, my + ny * 0.1, BODY_H - 1.2, len, 0.3, 0.35, sa);
   }
 
-  // Колоннад: урд хананы дагуу (SW → SE), 1.5 м урагш, 11 м өндөр багана 4.1 м тутамд
-  const south = [...southWallIdx].map((i) => [outerRing[i]!, outerRing[i + 1]!] as const);
-  for (const [a0, b0] of south) {
-    // a→b чиглэлийг баруунаас зүүн болгоно
-    const [a, b] = a0[0] < b0[0] ? [a0, b0] : [b0, a0];
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    const nx = Math.sin(ang), ny = -Math.cos(ang); // урагш (−y тал) нормал
-    const off = 1.6;
-    const colH = 11;
-    const count = Math.round(len / 4.1);
-    for (let k = 0; k <= count; k++) {
-      const t = k / count;
-      const cx = a[0] + (b[0] - a[0]) * t + nx * off;
-      const cy = a[1] + (b[1] - a[1]) * t + ny * off;
-      g.cylinder('column', cx, cy, 0.4, 0.55, colH, 14);
-      g.box('column', cx, cy, 0, 1.4, 1.4, 0.4, ang); // суурь
-      g.box('column', cx, cy, colH + 0.4, 1.3, 1.3, 0.4, ang); // капител
-    }
-    // энтаблатур (баганын дээрх хэвтээ хавтан) ба түүний дээрх нам парапет
-    const mx = (a[0] + b[0]) / 2 + nx * (off - 0.2), my = (a[1] + b[1]) / 2 + ny * (off - 0.2);
-    g.box('column', mx, my, colH + 0.8, len + 2, 3.2, 1.6, ang);
-    g.box('wall', mx, my, colH + 2.4, len + 2, 2.8, 0.7, ang);
+  // ---- Шилэн фасад (колоннадын ард, бүтэн өндөр), доор нь чулуун парапет ----
+  B('granite', 0, -GAL_D + 0.6, PLAT_H, fLen + 2, 1.2, 1.1);
+  B('glass', 0, -GAL_D + 0.3, PLAT_H + 1.1, fLen + 2, 0.5, COL_H - 1.1 + ENT_H);
+  // шилэн фасадын хэвтээ хуваалт (алтан)
+  for (const z of [PLAT_H + 5.2, PLAT_H + 9.3]) B('gold', 0, -GAL_D + 0.62, z, fLen + 2, 0.15, 0.25);
 
-    // Төв портик: хөшөөний байршил дээр төвлөсөн, илүү өндөр (17 м) 4 том баганатай халхавч
-    const st = toLocal(CHINGGIS_STATUE);
-    const portW = 26, portD = 9, portH = 17;
-    const pcx = st[0] + nx * 1.5, pcy = st[1] + ny * 1.5;
-    for (const dx of [-9.5, -3.2, 3.2, 9.5]) {
-      const cx = pcx + Math.cos(ang) * dx + nx * (portD / 2 - 1.2);
-      const cy = pcy + Math.sin(ang) * dx + ny * (portD / 2 - 1.2);
-      g.cylinder('column', cx, cy, 0.6, 0.8, portH - 1.2, 16);
-      g.box('column', cx, cy, 0, 2, 2, 0.6, ang);
-    }
-    g.box('column', pcx + nx * 0.5, pcy + ny * 0.5, portH - 0.6, portW, portD + 2, 2.2, ang); // халхавчийн хавтан
-    g.box('roof', pcx + nx * 0.5, pcy + ny * 0.5, portH + 1.6, portW - 2, portD, 0.5, ang);
-    // Хөшөөний суурь (боржин) ба суугаа дүрсийн хялбаршуулсан хэлбэр (хүрэл)
-    g.box('granite', st[0], st[1], 0, 8, 5, 1.2, ang);
-    g.box('granite', st[0], st[1], 1.2, 6.5, 4, 1.8, ang);
-    g.box('bronze', st[0] - nx * 0.6, st[1] - ny * 0.6, 3.0, 4.2, 3.0, 1.6, ang); // сэнтий
-    g.box('bronze', st[0] - nx * 0.9, st[1] - ny * 0.9, 4.6, 2.6, 1.8, 3.2, ang); // их бие
-    g.box('bronze', st[0] + nx * 0.6, st[1] + ny * 0.6, 3.0, 2.2, 1.6, 1.9, ang); // өвдөг
-    g.cylinder('bronze', st[0] - nx * 0.9, st[1] - ny * 0.9, 7.8, 0.65, 1.3, 10); // толгой
-    // Хажуугийн хоёр хөшөө (Өгэдэй, Хубилай) — жижиг суугаа дүрс
-    for (const dx of [-11, 11]) {
-      const cx = st[0] + Math.cos(ang) * dx, cy = st[1] + Math.sin(ang) * dx;
-      g.box('granite', cx, cy, 0, 5, 4, 1.2, ang);
-      g.box('bronze', cx, cy, 1.2, 2.2, 2.0, 2.4, ang);
-      g.cylinder('bronze', cx, cy, 3.6, 0.45, 0.9, 10);
-    }
+  // ---- Тавцан + бүх уртаараа өргөн шат ----
+  B('granite', 0, -GAL_D / 2 + 1, 0, fLen + 8, GAL_D + 3, PLAT_H);
+  const STEPS = 10;
+  for (let st = 0; st < STEPS; st++) {
+    const z = (PLAT_H * (STEPS - st)) / STEPS;
+    B('granite', 0, 2.5 + st * 0.75, 0, fLen + 8 - st * 0.4, 0.8, z);
+  }
+  // төвийн шат: илүү урагш, Чингис хааны хөшөө рүү (3 м өндөр нэмэлт тавцан)
+  for (let st = 0; st < 6; st++) B('granite', 0, -1.5 + st * 0.7, PLAT_H, 30 - st * 1.2, 0.75, (6 - st) * 0.35);
+
+  // ---- Колоннад: нарийн багана, алтан капитель; 4.9 м тутамд ----
+  const spacing = 4.9;
+  const colCount = Math.round(fLen / spacing);
+  const columnAt = (u: number, v: number, h: number, r: number) => {
+    B('stone-light', u, v, PLAT_H, r * 2.6, r * 2.6, 0.5);
+    CYL('marble', u, v, PLAT_H + 0.5, r, h - 1.6, r * 0.9);
+    B('gold', u, v, PLAT_H + h - 1.1, r * 2.4, r * 2.4, 0.4); // алтан капитель
+    B('stone-light', u, v, PLAT_H + h - 0.7, r * 2.6, r * 2.6, 0.7);
+  };
+  for (let k = 0; k <= colCount; k++) {
+    const u = -fLen / 2 + spacing * k;
+    if (Math.abs(u) < CENTER_W / 2 + 1) continue; // төвийн блок тусдаа
+    columnAt(u, 0.5, COL_H, 0.55);
+  }
+  // Энтаблатур + алтан судал + дээвэр
+  B('stone', 0, -GAL_D / 2 + 0.8, PLAT_H + COL_H, fLen + 3, GAL_D + 2.6, ENT_H);
+  B('gold', 0, 1.9, PLAT_H + COL_H + ENT_H * 0.55, fLen + 3, 0.15, 0.4);
+  B('stone-light', 0, -GAL_D / 2 + 0.8, ROOF_Z, fLen + 3.4, GAL_D + 3, 0.7); // карниз
+  B('roof', 0, -GAL_D / 2 + 0.8, ROOF_Z + 0.7, fLen + 2, GAL_D + 1.8, 0.2);
+
+  // ---- Павильон (4 ш): захын 2 + төвийн хажуугийн 2 — шилэн, хавтгай тагтай өндөрлөг ----
+  for (const u of [-endPav, endPav, -innerPav, innerPav]) {
+    B('stone', u, -GAL_D / 2 + 0.8, ROOF_Z, PAV_W, GAL_D + 2.6, 1.0); // суурь
+    B('glass', u, -GAL_D / 2 + 0.8, ROOF_Z + 1.0, PAV_W - 1.6, GAL_D + 1, PAV_H - 2.4);
+    B('stone-light', u, -GAL_D / 2 + 0.8, ROOF_Z + PAV_H - 1.4, PAV_W + 0.8, GAL_D + 3.4, 1.4); // хавтгай таг
+    B('gold', u, 1.8, ROOF_Z + PAV_H - 1.0, PAV_W + 0.8, 0.12, 0.3);
+    B('roof', u, -GAL_D / 2 + 0.8, ROOF_Z + PAV_H, PAV_W - 0.4, GAL_D + 2.2, 0.2);
   }
 
-  // Туг: дээвэр дээр 3 туг (төв), тугны даавуу
-  for (const dx of [-8, 0, 8]) {
-    g.cylinder('pole', dx, 10, BODY_H, 0.18, 14, 8);
-    g.box('flag', dx + 2.2, 10, BODY_H + 10.5, 4.2, 0.08, 2.6);
+  // ---- Төвийн блок: урагш цухуйсан, 6 том багана, нуман хонгил, хамгийн өндөр, туг ----
+  const CENTER_H = COL_H + ENT_H + 9; // тавцангаас
+  const CV = 1.6; // төвийн блок урагш цухуйлт
+  B('stone', 0, -GAL_D / 2 + CV, PLAT_H, CENTER_W, GAL_D + 2 * CV, CENTER_H); // цул блок (хонгилыг доор нь урдаас нь хонхойлгоно)
+  // Нуман хонгил: урд хананд 12 м өргөн, 15 м өндөр, гүн 7 м — алхам хэлбэрийн нуман дээд
+  const ARCH_W = 12, ARCH_H = 15, ARCH_D = 7;
+  B('dark', 0, CV + GAL_D / 2 - ARCH_D / 2 + 0.02, PLAT_H, ARCH_W, ARCH_D, ARCH_H - 2.5); // хонгилын хар дотор (сүүдэр)
+  for (let i = 0; i < 6; i++) {
+    const w = ARCH_W * Math.cos((i / 6) * (Math.PI / 2)) * 0.98;
+    B('dark', 0, CV + GAL_D / 2 - ARCH_D / 2 + 0.02, PLAT_H + ARCH_H - 2.5 + i * 0.42, w, ARCH_D, 0.42);
   }
+  // хонгилын алтан хүрээ
+  for (const du of [-ARCH_W / 2 - 0.4, ARCH_W / 2 + 0.4]) B('gold', du, CV + GAL_D / 2 + 0.05, PLAT_H, 0.6, 0.25, ARCH_H);
+  B('gold', 0, CV + GAL_D / 2 + 0.05, PLAT_H + ARCH_H + 0.1, ARCH_W + 1.4, 0.25, 0.6);
+  // төвийн 6 багана (3+3), хонгилын хоёр талд, урагш цухуйсан
+  for (const u of [-14.6, -11.0, -7.6, 7.6, 11.0, 14.6]) columnAt(u, CV + GAL_D / 2 + 2.6, COL_H, 0.6);
+  B('stone', 0, CV + GAL_D / 2 + 2.6, PLAT_H + COL_H, CENTER_W + 1, 3.4, ENT_H); // портикийн энтаблатур
+  B('gold', 0, CV + GAL_D / 2 + 4.35, PLAT_H + COL_H + 1.1, CENTER_W + 1, 0.15, 0.4);
+  // төвийн блокийн дээд хэсэг: алтан судал, карниз, өндөрлөг атик, таг, туг
+  B('gold', 0, CV + GAL_D / 2 + 0.1, PLAT_H + CENTER_H - 3.2, CENTER_W, 0.15, 0.4);
+  B('stone-light', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H, CENTER_W + 1.2, GAL_D + 2 * CV + 1.2, 1.2);
+  B('stone', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 1.2, CENTER_W - 8, GAL_D - 1, 3.2);
+  B('stone-light', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 4.4, CENTER_W - 6.5, GAL_D + 0.5, 1.0);
+  B('roof', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 5.4, CENTER_W - 8, GAL_D - 1, 0.2);
+  CYL('pole', 0, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 5.4, 0.14, 9, 0.14, 8);
+  B('flag', 1.6, -GAL_D / 2 + CV, PLAT_H + CENTER_H + 12.2, 3.0, 0.06, 2.0);
+
+  // ---- Хөшөөнүүд ----
+  const seated = (u: number, v: number, scale: number, pedH: number, pedW: number) => {
+    B('granite', u, v, PLAT_H, pedW, pedW * 0.7, pedH);
+    const z = PLAT_H + pedH;
+    B('bronze', u, v - 0.9 * scale, z, 3.6 * scale, 2.2 * scale, 1.5 * scale); // сэнтий
+    B('bronze', u, v - 0.9 * scale, z + 1.5 * scale, 2.4 * scale, 1.5 * scale, 3.4 * scale); // их бие
+    B('bronze', u, v + 0.6 * scale, z + 1.5 * scale, 2.6 * scale, 1.8 * scale, 1.6 * scale); // хөл
+    CYL('bronze', u, v - 0.9 * scale, z + 4.9 * scale, 0.55 * scale, 1.1 * scale, 0.5 * scale, 12);
+    B('bronze', u, v - 0.9 * scale, z + 6.0 * scale, 1.4 * scale, 1.2 * scale, 0.5 * scale);
+  };
+  seated(0, CV + GAL_D / 2 - 2.5, 1.5, 2.1, 7.5); // Чингис хаан — хонгилын дотор
+  seated(-endPav, -2.5, 1.0, 1.6, 5); // Өгэдэй — баруун захын павильон доор
+  seated(endPav, -2.5, 1.0, 1.6, 5); // Хубилай — зүүн зах
+  const equestrian = (u: number, v: number, facing: 1 | -1) => {
+    B('granite', u, v, PLAT_H, 6.5, 3.2, 2.0);
+    const z = PLAT_H + 2.0;
+    for (const [du, dv] of [[-1.6, -0.6], [-1.6, 0.6], [1.6, -0.6], [1.6, 0.6]] as P2[]) CYL('bronze', u + du * facing, v + dv, z, 0.22, 1.9, 0.2, 8);
+    B('bronze', u, v, z + 1.9, 4.2, 1.5, 1.6);
+    B('bronze', u + 2.6 * facing, v, z + 2.6, 1.6, 0.9, 1.6);
+    B('bronze', u, v, z + 3.5, 1.2, 1.1, 2.0);
+    CYL('bronze', u, v, z + 5.5, 0.35, 0.7, 0.3, 10);
+  };
+  equestrian(-CENTER_W / 2 - 5, 3.2, -1); // Боорчу
+  equestrian(CENTER_W / 2 + 5, 3.2, 1); // Мухулай
 
   const glb = g.toGLB('government-palace');
   const def: ModelDef = {
@@ -168,17 +242,17 @@ export function buildPalace(): { glb: Uint8Array; def: ModelDef; stats: ReturnTy
     buildingIds: [4432623, 1000],
     url: 'models/government-palace.glb',
     anchor,
-    camera: { center: [anchor.lng, anchor.lat - 0.0016], zoom: 17.3, pitch: 62, bearing: -8 },
+    camera: { center: [anchor.lng, anchor.lat - 0.0019], zoom: 17.3, pitch: 66, bearing: -6 },
     description:
       'Монгол Улсын төрийн төв ордон. Улсын Их Хурал, Ерөнхийлөгч, Засгийн газрын байр. Сүхбаатарын талбайн хойд талд; ' +
-      '2006 онд Их Монгол Улсын 800 жилийн ойд зориулан урд талд нь Чингис хааны хөшөө бүхий баганат колоннад барьсан.',
+      '2006 онд Их Монгол Улсын 800 жилийн ойд зориулан урд талд нь Чингис хааны хөшөө бүхий баганат фасад барьсан.',
     facts: [
       { label: 'Хаяг', value: 'Сүхбаатар дүүрэг, Сүхбаатарын талбай 1' },
       { label: 'Байгууллага', value: 'УИХ, Ерөнхийлөгчийн Тамгын газар, Засгийн газрын Хэрэг эрхлэх газар' },
-      { label: 'Урд талын хөшөө', value: 'Чингис хаан (төв), Өгэдэй, Хубилай хаан' },
-      { label: 'Загвар', value: 'LOD 2 — бодит footprint (OSM way/4432623), процедурын архитектур' },
+      { label: 'Урд талын хөшөө', value: 'Чингис хаан (төв, нуман хонгилд), Боорчу, Мухулай (морьт), Өгэдэй, Хубилай (захын павильон)' },
+      { label: 'Загвар', value: 'LOD 2 — бодит footprint (OSM way/4432623) + гэрэл зургаас гаргасан фасадын бүтэц' },
     ],
-    heightMeters: BODY_H,
+    heightMeters: PLAT_H + CENTER_H + 5.6,
     lod: 'procedural',
     services: ['parliament-info', 'president-reception'],
   };
