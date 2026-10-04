@@ -4,6 +4,8 @@
  *   tsx src/cli.ts demo            — демо seed-ээс PMTiles үүсгэнэ
  *   tsx src/cli.ts geojson <dir>   — <dir>/{layer}.geojson файлуудаас PMTiles үүсгэнэ
  *                                    (хотын өөрийн GIS давхаргууд: кадастр, инженерийн шугам г.м.)
+ *   tsx src/cli.ts normalize <in.pmtiles> <out.pmtiles>
+ *                                  — OSM гаралтын нэршил цэвэрлэх (монгол бичиг хасах)
  *   tsx src/cli.ts search-index <archive.pmtiles> [out.json]
  *                                  — ямар ч архиваас хайлтын индекс (OSM гаралтад ч ажиллана)
  */
@@ -17,6 +19,7 @@ import { generateUlaanbaatarSeed } from './seed/ub.js';
 import type { LayerCollections } from './encode.js';
 import { buildSearchIndex } from './search-index.js';
 import { PMTiles } from 'pmtiles';
+import { normalizeArchive } from './normalize.js';
 import { MemorySource, NodeFileSource } from './pmtiles/node-source.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -128,8 +131,21 @@ function fromGeojsonDir(dir: string): void {
   writeFile(join(OUT_DIR, 'custom.pmtiles'), r.bytes);
 }
 
+/** OSM гаралтын нэршлийг цэвэрлэж (монгол бичиг хасах) шинэ архив бичнэ. */
+async function normalize(input: string, output: string): Promise<void> {
+  const src = new NodeFileSource(input);
+  const r = await normalizeArchive(src, log);
+  src.close();
+  writeFile(output, r.bytes);
+  log(`normalize: ${r.changed} нэр цэвэрлэв, ${r.stats.addressedTiles} tile → ${output} (${fmtKB(r.bytes.length)})`);
+}
+
 const [cmd, arg, arg2] = process.argv.slice(2);
 switch (cmd) {
+  case 'normalize':
+    if (!arg || !arg2) throw new Error('normalize <in.pmtiles> <out.pmtiles>');
+    await normalize(resolve(arg), resolve(arg2));
+    break;
   case 'demo':
     await demo();
     break;
@@ -142,6 +158,6 @@ switch (cmd) {
     await searchIndexFrom(resolve(arg), resolve(arg2 ?? join(WEB_DATA, 'search-index.json')));
     break;
   default:
-    console.error('Хэрэглээ: tsx src/cli.ts demo | geojson <dir> | search-index <archive.pmtiles> [out.json]');
+    console.error('Хэрэглээ: tsx src/cli.ts demo | geojson <dir> | normalize <in> <out> | search-index <archive.pmtiles> [out.json]');
     process.exit(1);
 }

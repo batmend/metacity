@@ -7,6 +7,7 @@ import { gunzipSync } from 'node:zlib';
 import { PMTiles, zxyToTileId as refTileId } from 'pmtiles';
 import { MemorySource } from '../src/pmtiles/node-source.js';
 import { buildSearchIndex } from '../src/search-index.js';
+import { cleanName } from '../src/normalize.js';
 import { VectorTile } from '@mapbox/vector-tile';
 import { PbfReader } from 'pbf';
 import { DEMO_BOUNDS, UB_CENTER } from '@metacity/schema';
@@ -109,4 +110,12 @@ test('демо архивыг албан ёсны уншигч уншина, til
   assert.ok(palace[0]!.services?.includes('parliament-info'));
   assert.ok(index.some((e) => e.type === 'road' && e.name === 'Энх тайвны өргөн чөлөө'));
   assert.ok(index.some((e) => e.type === 'place' && e.name === 'Улаанбаатар'));
+});
+
+test('cleanName: монгол бичгийг хасна, кирилл/латиныг хөндөхгүй', () => {
+  assert.equal(cleanName('Улаанбаатар ᠤᠯᠠᠭᠠᠨ ᠪᠠᠭᠠᠲᠤᠷ'), 'Улаанбаатар');
+  assert.equal(cleanName('1-р хороолол ᠑\u202fᠳᠦᠭᠡᠷ ᠬᠣᠷᠢᠶᠠᠯᠠᠯ'), '1-р хороолол');
+  assert.equal(cleanName('Бага Тойрог ᠪᠠᠭ\u180eᠠ ᠲᠣᠭᠣᠷᠢᠭ'), 'Бага Тойрог');
+  assert.equal(cleanName('Peace Avenue'), 'Peace Avenue');
+  assert.equal(cleanName('Энх тайвны өргөн чөлөө'), 'Энх тайвны өргөн чөлөө');
 });

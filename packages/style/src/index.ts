@@ -51,7 +51,9 @@ export const LAYER_ID = {
   building2dOutline: 'building-2d-outline',
   building3d: 'building-3d',
   poi: 'poi',
+  poiMinor: 'poi-minor',
   poiLabel: 'poi-label',
+  poiLabelMinor: 'poi-label-minor',
   roadLabel: 'road-label',
   placeLabel: 'place-label',
   waterLabel: 'water-label',
@@ -220,6 +222,17 @@ const matchClass = (map: Record<string, string>, fallback: string): ExpressionSp
 const zoomInterp = (stops: [number, number][]): ExpressionSpecification =>
   ['interpolate', ['exponential', 1.4], ['zoom'], ...stops.flat()] as ExpressionSpecification;
 
+/**
+ * Барилгын өндөр (м): height → building:levels × 3.2 → ангиллын анхдагч.
+ * OSM-д height ховор, levels заримдаа; үлдсэнд УБ-ын ердийн давхрын тоог ашиглана.
+ */
+const DEFAULT_LEVELS: ExpressionSpecification = ['match', get('class'), 'residential', 5, 'commercial', 3, 'office', 6, 'government', 4, 'hotel', 8, 'education', 3, 'health', 4, 'industrial', 1.5, 'cultural', 3, 'religious', 2, 2.5] as unknown as ExpressionSpecification;
+const HEIGHT: ExpressionSpecification = [
+  'coalesce',
+  get('height'),
+  ['case', ['>', ['coalesce', get('levels'), 0], 0], ['*', get('levels'), 3.2], ['*', DEFAULT_LEVELS, 3.2]],
+] as unknown as ExpressionSpecification;
+
 /** Монгол нэрийг түрүүлж, байхгүй бол англи. */
 const NAME: ExpressionSpecification = ['coalesce', get('name'), get('name_en'), ''];
 
@@ -302,7 +315,7 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
   const otherByHeight: ExpressionSpecification = [
     'interpolate',
     ['linear'],
-    ['coalesce', get('height'), ['*', ['coalesce', get('levels'), 3], 3.2]],
+    HEIGHT,
     0,
     theme === 'light' ? '#d2cdc3' : '#353940',
     20,
@@ -426,46 +439,53 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
       paint: {
         'fill-extrusion-color': buildingColor,
         // height → байхгүй бол давхар × 3.2 м → байхгүй бол 10 м (OSM-д height ховор, building:levels элбэг)
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, ['coalesce', get('height'), ['*', ['coalesce', get('levels'), 3], 3.2]]] as unknown as ExpressionSpecification,
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, HEIGHT] as unknown as ExpressionSpecification,
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, ['coalesce', get('min_height'), 0]] as ExpressionSpecification,
         'fill-extrusion-opacity': 0.92,
         'fill-extrusion-vertical-gradient': true,
       },
     },
-    // --- POI ---
-    {
-      id: LAYER_ID.poi,
-      type: 'circle',
-      source: SOURCE_ID,
-      'source-layer': LAYER.poi,
-      minzoom: 13,
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.5, 16, 5, 19, 8],
-        'circle-color': matchClass(P.poi, P.poi['office']!),
-        'circle-stroke-color': theme === 'light' ? '#ffffff' : '#14161b',
-        'circle-stroke-width': 1.5,
-        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 15, 1],
+    // --- POI: чухал (rank ≤ 3) z13-аас, бусад (дэлгүүр г.м.) зөвхөн z16-аас ---
+    ...([
+      [LAYER_ID.poi, LAYER_ID.poiLabel, ['<=', get('rank'), 3], 13, 14],
+      [LAYER_ID.poiMinor, LAYER_ID.poiLabelMinor, ['>', get('rank'), 3], 16, 16.5],
+    ] as [string, string, ExpressionSpecification, number, number][]).flatMap(([circleId, labelId, filter, circleZoom, labelZoom]): LayerSpecification[] => [
+      {
+        id: circleId,
+        type: 'circle',
+        source: SOURCE_ID,
+        'source-layer': LAYER.poi,
+        minzoom: circleZoom,
+        filter,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.5, 16, 4.5, 19, 7],
+          'circle-color': matchClass(P.poi, P.poi['office']!),
+          'circle-stroke-color': theme === 'light' ? '#ffffff' : '#14161b',
+          'circle-stroke-width': 1.5,
+          'circle-opacity': ['interpolate', ['linear'], ['zoom'], circleZoom, 0.5, circleZoom + 1.5, 1],
+        },
       },
-    },
-    {
-      id: LAYER_ID.poiLabel,
-      type: 'symbol',
-      source: SOURCE_ID,
-      'source-layer': LAYER.poi,
-      minzoom: 14,
-      layout: {
-        'text-field': NAME,
-        'text-font': [FONT_REGULAR],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 14, 10, 18, 13],
-        'text-offset': [0, 0.9],
-        'text-anchor': 'top',
-        'text-max-width': 9,
-        'symbol-sort-key': get('rank'),
-        'text-optional': true,
-        'text-padding': 4,
+      {
+        id: labelId,
+        type: 'symbol',
+        source: SOURCE_ID,
+        'source-layer': LAYER.poi,
+        minzoom: labelZoom,
+        filter,
+        layout: {
+          'text-field': NAME,
+          'text-font': [FONT_REGULAR],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 14, 10, 18, 12.5],
+          'text-offset': [0, 0.8],
+          'text-anchor': 'top',
+          'text-max-width': 8,
+          'symbol-sort-key': get('rank'),
+          'text-optional': true,
+          'text-padding': 6,
+        },
+        paint: { 'text-color': matchClass(P.poi, P.text), 'text-halo-color': P.textHalo, 'text-halo-width': 1.4 },
       },
-      paint: { 'text-color': matchClass(P.poi, P.text), 'text-halo-color': P.textHalo, 'text-halo-width': 1.4 },
-    },
+    ]),
     // --- Шошго ---
     {
       id: LAYER_ID.roadLabel,

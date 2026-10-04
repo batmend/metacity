@@ -34,7 +34,7 @@ interface Selected {
 }
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
-const TAPPABLE = [LAYER_ID.poi, LAYER_ID.poiLabel, LAYER_ID.building3d, LAYER_ID.building2d, LAYER_ID.placeLabel];
+const TAPPABLE = [LAYER_ID.poi, LAYER_ID.poiMinor, LAYER_ID.poiLabel, LAYER_ID.poiLabelMinor, LAYER_ID.building3d, LAYER_ID.building2d, LAYER_ID.placeLabel];
 
 export default function App() {
   return (

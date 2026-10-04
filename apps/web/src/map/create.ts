@@ -55,7 +55,8 @@ export function styleFor(t: Theme, m: ViewMode) {
 }
 
 const BUILDING_LAYERS = [LAYER_ID.building3d, LAYER_ID.building2d];
-const CLICKABLE = [LAYER_ID.poi, LAYER_ID.poiLabel, ...BUILDING_LAYERS, LAYER_ID.placeLabel, LAYER_ID.roadLabel];
+const POI_LAYERS = [LAYER_ID.poi, LAYER_ID.poiMinor, LAYER_ID.poiLabel, LAYER_ID.poiLabelMinor];
+const CLICKABLE = [...POI_LAYERS, ...BUILDING_LAYERS, LAYER_ID.placeLabel, LAYER_ID.roadLabel];
 
 export interface MetaCityMap {
   map: MLMap;
@@ -225,7 +226,7 @@ export function createMap(container: HTMLElement): MetaCityMap {
     const p = f.properties as Record<string, unknown>;
     const layer = f.layer.id;
     const point = f.geometry.type === 'Point' ? (f.geometry.coordinates as [number, number]) : lngLat;
-    if (layer === LAYER_ID.poi || layer === LAYER_ID.poiLabel) {
+    if (POI_LAYERS.includes(layer as never)) {
       const buildingId = typeof p['building'] === 'number' ? (p['building'] as number) : null;
       highlightBuilding(buildingId);
       setMarker(point);

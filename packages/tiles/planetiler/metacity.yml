@@ -137,6 +137,7 @@ layers:
             exclude_when: { tunnel: no }
           - key: lanes
             type: long
+            include_when: { lanes: __any__ }
 
   # --------------------------------------------------------------- building
   - id: building
@@ -173,11 +174,14 @@ layers:
                 industrial: { building: [industrial, warehouse, factory] }
           - key: height
             type: double
+            include_when: { height: __any__ }
           - key: min_height
             type: double
+            include_when: { min_height: __any__ }
           - key: levels
             tag_value: building:levels
             type: long
+            include_when: { building:levels: __any__ }
           - key: name
           - key: name_en
             tag_value: name:en
@@ -191,7 +195,13 @@ layers:
     features:
       - source: osm
         geometry: point
-        min_zoom: 12
+        # Чухал нь эрт (z12), дэлгүүр/ресторан зэрэг олон тоотой нь зөвхөн z15-аас
+        min_zoom:
+          default_value: 15
+          overrides:
+            12: { amenity: [townhall, hospital, theatre, post_office], tourism: museum, office: government }
+            13: { amenity: [bank, school, university, college, police, library, clinic], tourism: hotel, historic: [monument, memorial] }
+            14: { highway: bus_stop, amenity: [kindergarten, pharmacy, parking, place_of_worship] }
         include_when:
           amenity: [townhall, post_office, bank, hospital, clinic, pharmacy, school, kindergarten, university, college, police, theatre, library, place_of_worship, restaurant, cafe, parking]
           tourism: [museum, hotel, attraction]

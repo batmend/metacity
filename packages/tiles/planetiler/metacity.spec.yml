@@ -62,6 +62,25 @@ examples:
       layer: building
       tags: { class: residential, levels: 9 }
 
+  - name: Давхрын мэдээлэлгүй барилга → levels атрибут байхгүй (0 биш)
+    input:
+      source: osm
+      geometry: polygon
+      tags: { building: yes }
+    output:
+      layer: building
+      tags: { class: other, levels: null, height: null }
+
+  - name: Дэлгүүр POI зөвхөн z15-аас
+    input:
+      source: osm
+      geometry: point
+      tags: { shop: supermarket, name: Номин }
+    output:
+      layer: poi
+      min_zoom: 15
+      tags: { class: shop, rank: 5 }
+
   - name: Эмнэлэг POI
     input:
       source: osm
