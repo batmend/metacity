@@ -226,7 +226,7 @@ const zoomInterp = (stops: [number, number][]): ExpressionSpecification =>
  * Барилгын өндөр (м): height → building:levels × 3.2 → ангиллын анхдагч.
  * OSM-д height ховор, levels заримдаа; үлдсэнд УБ-ын ердийн давхрын тоог ашиглана.
  */
-const DEFAULT_LEVELS: ExpressionSpecification = ['match', get('class'), 'residential', 5, 'commercial', 3, 'office', 6, 'government', 4, 'hotel', 8, 'education', 3, 'health', 4, 'industrial', 1.5, 'cultural', 3, 'religious', 2, 2.5] as unknown as ExpressionSpecification;
+const DEFAULT_LEVELS: ExpressionSpecification = ['match', get('class'), 'residential', 5, 'commercial', 3, 'office', 6, 'government', 4, 'hotel', 8, 'education', 3, 'health', 4, 'industrial', 1.5, 'cultural', 3, 'religious', 2, 3.5] as unknown as ExpressionSpecification;
 const HEIGHT: ExpressionSpecification = [
   'coalesce',
   get('height'),
@@ -439,7 +439,8 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
       paint: {
         'fill-extrusion-color': buildingColor,
         // height → байхгүй бол давхар × 3.2 м → байхгүй бол 10 м (OSM-д height ховор, building:levels элбэг)
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, HEIGHT] as unknown as ExpressionSpecification,
+        // feature-state.hidden: нарийвчилсан 3D загвар харуулж буй барилгын суурь extrusion-ийг нуух
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, ['case', ['boolean', ['feature-state', 'hidden'], false], 0, HEIGHT]] as unknown as ExpressionSpecification,
         'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, ['coalesce', get('min_height'), 0]] as ExpressionSpecification,
         'fill-extrusion-opacity': 0.92,
         'fill-extrusion-vertical-gradient': true,

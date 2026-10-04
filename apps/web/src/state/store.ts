@@ -1,6 +1,6 @@
 import { signal, computed, effect } from '@preact/signals';
 import type { Theme, ViewMode } from '@metacity/style';
-import type { TilesMeta } from '@metacity/schema';
+import type { LandmarkModel, TilesMeta } from '@metacity/schema';
 
 export type PanelKind = 'info' | 'services' | 'report' | 'about' | null;
 
@@ -53,6 +53,12 @@ export const reportDraftLocation = signal<[number, number] | null>(null);
 export const mapReady = signal(false);
 /** Ачаалсан tile архивын мета (нэр, хил, attribution) */
 export const tilesMeta = signal<TilesMeta | null>(null);
+/** Сонгосон барилгын нарийвчилсан 3D загвар (байвал) */
+export const landmark = signal<LandmarkModel | null>(null);
+/** Загвар ачаалж байна */
+export const landmarkLoading = signal(false);
+/** Сонгосон цэгийн ойролцоох байршлууд (POI) */
+export const nearby = signal<{ name: string; class: string; dist: number }[]>([]);
 export const dataBytes = signal(0);
 export const installPrompt = signal<(() => Promise<void>) | null>(null);
 

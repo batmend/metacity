@@ -11,8 +11,12 @@ import {
   selected,
   select,
   openPanel,
+  landmark,
+  landmarkLoading,
+  nearby,
   type Selected,
 } from '../state/store';
+import { POI_CLASS_LABEL as POI_LBL } from '../labels';
 import { mapRef } from './App';
 import { BUILDING_CLASS_LABEL, PLACE_CLASS_LABEL, POI_CLASS_LABEL, REPORT_CATEGORIES, ROAD_CLASS_LABEL } from '../labels';
 
@@ -91,14 +95,15 @@ function InfoPanel() {
   const p = s.props;
   const classLabel =
     s.kind === 'building' ? BUILDING_CLASS_LABEL[s.class] : s.kind === 'poi' ? POI_CLASS_LABEL[s.class] : s.kind === 'place' ? PLACE_CLASS_LABEL[s.class] : ROAD_CLASS_LABEL[s.class];
-  const services = parseServiceIds(p['services'] as string | undefined);
+  const lm = landmark.value;
+  const services = parseServiceIds([p['services'] as string | undefined, lm?.services?.join(',')].filter(Boolean).join(','));
   const height = typeof p['height'] === 'number' ? (p['height'] as number) : undefined;
   const levels = typeof p['levels'] === 'number' ? (p['levels'] as number) : undefined;
   const title = s.name || (s.kind === 'building' ? `Барилга #${s.featureId ?? ''}` : classLabel);
 
   return (
     <div class="panel-body">
-      <div class="eyebrow">{classLabel ?? s.class}</div>
+      <div class="eyebrow">{lm ? 'Дурсгалт барилга' : (classLabel ?? s.class)}</div>
       <h2>{title}</h2>
       {s.name_en && <div class="muted">{s.name_en}</div>}
       {p['addr'] && <div class="addr">📍 {String(p['addr'])}</div>}
@@ -126,11 +131,44 @@ function InfoPanel() {
       )}
       {p['demo'] !== undefined && <div class="note">Демо өгөгдөл: байршил, өндөр ойролцоо. Бодит OSM/кадастрын өгөгдлөөр солигдоно.</div>}
 
+      {landmark.value && (
+        <section class="landmark">
+          <div class="landmark-badge">
+            🏛️ Нарийвчилсан 3D загвар · {landmark.value.lod === 'procedural' ? 'LOD 2' : landmark.value.lod === 'bim' ? 'BIM' : 'Фотограмметр'}
+            {landmarkLoading.value && <span class="muted"> · ачаалж байна…</span>}
+          </div>
+          <p>{landmark.value.description}</p>
+          <dl class="kv">
+            {landmark.value.facts.map((f) => (
+              <div key={f.label}>
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div class="muted">Камер барилгыг тойрон эргэнэ; газрын зураг дээр дарж/чирж зогсооно.</div>
+        </section>
+      )}
+
       <h3>Энд авах боломжтой үйлчилгээ</h3>
       {services.length === 0 ? (
         <div class="muted">Энэ байршилд бүртгэгдсэн үйлчилгээ алга.</div>
       ) : (
         services.map((sv) => <ServiceRow key={sv.id} s={sv} />)
+      )}
+
+      {nearby.value.length > 0 && (
+        <>
+          <h3>Ойролцоох байршлууд</h3>
+          <ul class="nearby">
+            {nearby.value.map((n) => (
+              <li key={n.name}>
+                <span>{n.name}</span>
+                <span class="muted">{POI_LBL[n.class] ?? n.class} · {n.dist} м</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <div class="row">

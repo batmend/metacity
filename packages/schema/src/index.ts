@@ -323,3 +323,32 @@ export interface TilesMeta {
 export function padBounds(b: LngLatBounds, margin = 0.02): LngLatBounds {
   return { west: b.west - margin, south: b.south - margin, east: b.east + margin, north: b.north + margin };
 }
+
+// ---------------------------------------------------------------------------
+// Нарийвчилсан 3D загвар (LOD 2+): сонгосон/ойртсон барилгад л татагдана
+// (models/registry.json). Суурь extrusion нь бүх хотод, загвар нь зөвхөн дурсгалт
+// барилгуудад — апп/дата хэмжээ хотоос хамаарахгүй зарчим хадгалагдана.
+// ---------------------------------------------------------------------------
+
+export interface LandmarkModel {
+  id: string;
+  name: string;
+  name_en: string;
+  /** Tile дэх барилгын `id` атрибут (OSM way id, демо seed id) */
+  buildingIds: number[];
+  /** glTF/GLB файл (BASE-д харьцангуй) */
+  url: string;
+  /** Загварын гарал (0,0,0) газар дээр хаана байрлах */
+  anchor: { lng: number; lat: number };
+  /** Сонгоход камер ийм байрлалд очно */
+  camera: { center: [number, number]; zoom: number; pitch: number; bearing: number };
+  description: string;
+  facts: { label: string; value: string }[];
+  heightMeters: number;
+  lod: 'procedural' | 'photogrammetry' | 'bim';
+  /** Энэ барилгаас авах үйлчилгээний ID-ууд (@metacity/services) — OSM-д байхгүй мэдээлэл */
+  services?: string[];
+}
+
+/** Өгөгдлийн залруулга: OSM-д буруу/дутуу орсон атрибутыг барилгын id-аар засна (normalize алхам). */
+export type BuildingCorrections = Record<string, Partial<Pick<BuildingProps, 'height' | 'levels' | 'class' | 'name' | 'name_en' | 'addr' | 'services'>>>;

@@ -66,9 +66,10 @@ export function TopBar() {
     setQ('');
     if (!mc) return;
     mc.flyTo([e.lng, e.lat], e.type === 'place' ? 15.5 : 17.2);
-    if (e.type === 'building' && e.featureId !== undefined) mc.highlightBuilding(e.featureId);
-    else mc.highlightBuilding(null);
     mc.setMarker(e.type === 'road' ? null : [e.lng, e.lat]);
+    // Барилгын OSM id = MVT id-г 10-т хувааж доош бүхэлтгэсэн утга (planetiler), демо seed-д ижил
+    if (e.type === 'building') mc.focusBuilding(e.featureId, e.featureId !== undefined ? (e.featureId > 1_000_000 ? Math.floor(e.featureId / 10) : e.featureId) : undefined, [e.lng, e.lat]);
+    else mc.highlightBuilding(null);
     select({
       kind: e.type,
       featureId: e.featureId,

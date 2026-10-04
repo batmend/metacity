@@ -47,6 +47,8 @@ export default defineConfig({
       workbox: {
         // Зөвхөн shell. *.pmtiles, *.pbf, *.json энд ОРОХГҮЙ.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // three.js + GLTFLoader зөвхөн дурсгалт барилга сонгоход татагдана — precache-д оруулахгүй
+        globIgnores: ['**/three.module-*.js', '**/GLTFLoader-*.js', '**/node_modules/**'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         runtimeCaching: [

@@ -31,7 +31,10 @@ import {
   type ViewMode,
 } from '@metacity/style';
 import { DEMO_BOUNDS, UB_CENTER, padBounds, type TilesMeta } from '@metacity/schema';
-import { mapReady, mode, pickingLocation, reportDraftLocation, reports, select, theme, tilesMeta, type CitizenReport } from '../state/store';
+import { landmark, landmarkLoading, mapReady, mode, nearby, pickingLocation, reportDraftLocation, reports, select, theme, tilesMeta, type CitizenReport } from '../state/store';
+import { findLandmark } from '../landmarks';
+import { ModelLayer, MODEL_LAYER_ID } from './models';
+import type { LandmarkModel } from '@metacity/schema';
 import { effect } from '@preact/signals';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
@@ -64,6 +67,9 @@ export interface MetaCityMap {
   setTheme(t: Theme): void;
   highlightBuilding(id: number | null): void;
   flyTo(lngLat: [number, number], zoom?: number): void;
+  /** Барилга сонгох (хайлт, панел г.м.-ээс): тодруулах + дурсгалт бол загвар, камер */
+  focusBuilding(featureId: number | undefined, buildingId: number | undefined, lngLat: [number, number]): void;
+  clearSelection(): void;
   setMarker(lngLat: [number, number] | null): void;
   destroy(): void;
 }
@@ -129,9 +135,86 @@ export function createMap(container: HTMLElement): MetaCityMap {
   };
 
   const highlightBuilding = (id: number | null) => {
-    if (selectedId !== null) fs(selectedId, { selected: false });
+    if (selectedId !== null) fs(selectedId, { selected: false, hidden: false });
     selectedId = id;
     if (id !== null) fs(id, { selected: true });
+  };
+
+  // --- Нарийвчилсан 3D загвар + кино камер (fly-in → удаан эргэлт) ---
+  const modelLayer = new ModelLayer();
+  let orbitFrame = 0;
+  const stopOrbit = () => {
+    if (orbitFrame) cancelAnimationFrame(orbitFrame);
+    orbitFrame = 0;
+  };
+  const startOrbit = () => {
+    stopOrbit();
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      map.setBearing(map.getBearing() + dt * 0.004); // ~4°/сек
+      orbitFrame = requestAnimationFrame(tick);
+    };
+    orbitFrame = requestAnimationFrame(tick);
+  };
+  for (const ev of ['mousedown', 'touchstart', 'wheel', 'dragstart'] as const) map.on(ev, stopOrbit);
+
+  const clearLandmark = () => {
+    stopOrbit();
+    modelLayer.hide();
+    landmark.value = null;
+  };
+
+  const showLandmark = async (def: LandmarkModel, featureId: number | undefined) => {
+    landmark.value = def;
+    landmarkLoading.value = true;
+    if (!map.getLayer(MODEL_LAYER_ID)) map.addLayer(modelLayer);
+    if (featureId !== undefined) fs(featureId, { selected: true, hidden: true });
+    map.flyTo({ center: def.camera.center, zoom: def.camera.zoom, pitch: def.camera.pitch, bearing: def.camera.bearing, duration: 2200, essential: true });
+    try {
+      await modelLayer.show(def);
+    } finally {
+      landmarkLoading.value = false;
+    }
+    map.once('moveend', () => {
+      if (landmark.value?.id === def.id) startOrbit();
+    });
+  };
+
+  /** Сонгосон цэгийн эргэн тойрны (~150 м) POI-ууд — панелд "Ойролцоох" хэсэгт */
+  const collectNearby = (lngLat: [number, number]) => {
+    const p = map.project(lngLat);
+    const r = 110;
+    const feats = map.queryRenderedFeatures([[p.x - r, p.y - r], [p.x + r, p.y + r]], { layers: POI_LAYERS.filter((l) => map.getLayer(l)) });
+    const seen = new Set<string>();
+    const out: { name: string; class: string; dist: number }[] = [];
+    for (const f of feats) {
+      const name = String(f.properties['name'] ?? '');
+      if (!name || seen.has(name) || f.geometry.type !== 'Point') continue;
+      seen.add(name);
+      const [lng, lat] = f.geometry.coordinates as [number, number];
+      const dist = Math.hypot((lng - lngLat[0]) * 74_000, (lat - lngLat[1]) * 111_000);
+      out.push({ name, class: String(f.properties['class'] ?? ''), dist: Math.round(dist) });
+    }
+    nearby.value = out.sort((a, b) => a.dist - b.dist).slice(0, 8);
+  };
+
+  const focusBuilding = (featureId: number | undefined, buildingId: number | undefined, lngLat: [number, number]) => {
+    clearLandmark();
+    highlightBuilding(featureId ?? null);
+    collectNearby(lngLat);
+    void findLandmark(buildingId).then((def) => {
+      if (def) void showLandmark(def, featureId);
+    });
+  };
+
+  const clearSelection = () => {
+    clearLandmark();
+    highlightBuilding(null);
+    setMarker(null);
+    nearby.value = [];
+    select(null);
   };
 
   // --- Иргэдийн мэдээлсэн асуудлууд (reports) давхарга ---
@@ -214,9 +297,7 @@ export function createMap(container: HTMLElement): MetaCityMap {
     const feats = map.queryRenderedFeatures(e.point, { layers: CLICKABLE.filter((l) => map.getLayer(l)) });
     const f = feats[0];
     if (!f) {
-      highlightBuilding(null);
-      setMarker(null);
-      select(null);
+      clearSelection();
       return;
     }
     selectFeature(f, [e.lngLat.lng, e.lngLat.lat]);
@@ -227,22 +308,32 @@ export function createMap(container: HTMLElement): MetaCityMap {
     const layer = f.layer.id;
     const point = f.geometry.type === 'Point' ? (f.geometry.coordinates as [number, number]) : lngLat;
     if (POI_LAYERS.includes(layer as never)) {
-      const buildingId = typeof p['building'] === 'number' ? (p['building'] as number) : null;
-      highlightBuilding(buildingId);
+      // POI-ийн холбоотой барилга (building атрибут = OSM id); хайлтаар тодруулахад MVT id хэрэгтэй — тодруулахгүй
+      const buildingId = typeof p['building'] === 'number' ? (p['building'] as number) : undefined;
+      clearLandmark();
+      highlightBuilding(null);
       setMarker(point);
+      collectNearby(point);
       select({ kind: 'poi', featureId: Number(p['id']), name: String(p['name'] ?? ''), name_en: p['name_en'] as string | undefined, class: String(p['class']), props: p, lngLat: point });
+      void findLandmark(buildingId).then((def) => {
+        if (def) void showLandmark(def, undefined);
+      });
     } else if (BUILDING_LAYERS.includes(layer as never)) {
       const id = typeof f.id === 'number' ? f.id : Number(p['id']);
-      highlightBuilding(id);
       setMarker(null);
       select({ kind: 'building', featureId: id, name: String(p['name'] ?? ''), name_en: p['name_en'] as string | undefined, class: String(p['class']), props: p, lngLat });
+      focusBuilding(id, typeof p['id'] === 'number' ? (p['id'] as number) : undefined, lngLat);
     } else if (layer === LAYER_ID.placeLabel) {
+      clearLandmark();
       highlightBuilding(null);
       setMarker(point);
+      nearby.value = [];
       select({ kind: 'place', name: String(p['name']), name_en: p['name_en'] as string | undefined, class: String(p['class']), props: p, lngLat: point });
     } else if (layer === LAYER_ID.roadLabel) {
+      clearLandmark();
       highlightBuilding(null);
       setMarker(null);
+      nearby.value = [];
       select({ kind: 'road', name: String(p['name']), name_en: p['name_en'] as string | undefined, class: String(p['class']), props: p, lngLat });
     }
   };
@@ -264,8 +355,14 @@ export function createMap(container: HTMLElement): MetaCityMap {
     setTheme,
     highlightBuilding,
     setMarker,
-    flyTo: (lngLat, zoom = 17) => map.flyTo({ center: lngLat, zoom, duration: 1200, essential: true }),
+    focusBuilding,
+    clearSelection,
+    flyTo: (lngLat, zoom = 17) => {
+      stopOrbit();
+      map.flyTo({ center: lngLat, zoom, duration: 1200, essential: true });
+    },
     destroy: () => {
+      stopOrbit();
       disposeReports();
       map.remove();
     },

@@ -7,18 +7,21 @@
   "scripts": {
     "seed": "tsx src/seed/cli.ts",
     "build:demo": "tsx src/cli.ts demo",
+    "build:models": "tsx src/cli.ts models",
     "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@metacity/schema": "workspace:*",
+    "@mapbox/vector-tile": "^3.0.0",
     "@maplibre/geojson-vt": "^6.1.1",
     "@maplibre/vt-pbf": "^4.3.2",
-    "@mapbox/vector-tile": "^3.0.0",
+    "@metacity/schema": "workspace:*",
+    "earcut": "^3.2.4",
     "pbf": "^5.1.2",
     "pmtiles": "^4.5.0"
   },
   "devDependencies": {
+    "@types/earcut": "^3.0.0",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.20.5",
     "tsx": "^4.23.15",

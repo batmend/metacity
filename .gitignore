@@ -9,6 +9,7 @@ dist/
 packages/tiles/out/
 apps/web/public/tiles/*.pmtiles
 apps/web/public/style/*.json
+apps/web/public/models/
 apps/web/dev-dist/
 
 # Бодит OSM өгөгдөл (том файл, репод оруулахгүй)

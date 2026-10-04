@@ -1,0 +1,4 @@
+{
+  "_comment": "Барилгын id (OSM way id) → атрибутын залруулга. normalize алхам tile-д хэрэглэнэ. Эх сурвалж: газар дээрх мэдээлэл, кадастр.",
+  "4432623": { "levels": 5, "height": 24, "class": "government", "name": "Төрийн ордон", "name_en": "Government Palace", "services": "parliament-info,president-reception" }
+}

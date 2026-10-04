@@ -41,6 +41,14 @@ BBOX=106.70,47.80,107.15,48.00 scripts/build-osm.sh    # бүх Улаанбаа
 > өгөгдөл дээр **ажиллуулж шалгаагүй**; схемийн тестүүд (`verify-schema`) л ажилласан. Эхний ажиллуулалтад гарч
 > ирэх зөрүүг `metacity.yml` дээр засах шаардлагатай байж болно.
 
+### 2.1 normalize алхам
+`build-osm.sh` planetiler-ийн гаралтыг `tsx src/cli.ts normalize` алхмаар дамжуулна: монгол бичгийн тэмдэгтийг
+нэрнээс хасна (OSM-д "Улаанбаатар ᠤᠯᠠᠭᠠᠨ ᠪᠠᠭᠠᠲᠤᠷ" маягаар орсон), `corrections/ub.json`-ийн залруулгыг хэрэглэнэ.
+
+### 2.2 3D загвар
+`pnpm tiles:models` → `apps/web/public/models/*.glb` + `registry.json`. Шинэ дурсгалт барилга нэмэх =
+`src/models/`-д генератор (эсвэл бэлэн glTF) + registry-д бичлэг (buildingIds, anchor, camera).
+
 ## 3. Хотын өөрийн GIS давхарга (GeoJSON → PMTiles)
 
 ```bash

@@ -25,7 +25,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Demo tiles + style
-        run: pnpm tiles:demo && pnpm style:build
+        run: pnpm tiles:demo && pnpm tiles:models && pnpm style:build
       - name: Use real OSM tiles when the data-latest release exists
         run: |
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/data-latest"

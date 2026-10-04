@@ -4,6 +4,7 @@
  *   tsx src/cli.ts demo            — демо seed-ээс PMTiles үүсгэнэ
  *   tsx src/cli.ts geojson <dir>   — <dir>/{layer}.geojson файлуудаас PMTiles үүсгэнэ
  *                                    (хотын өөрийн GIS давхаргууд: кадастр, инженерийн шугам г.м.)
+ *   tsx src/cli.ts models            — нарийвчилсан 3D загварууд (glTF) үүсгэнэ
  *   tsx src/cli.ts normalize <in.pmtiles> <out.pmtiles>
  *                                  — OSM гаралтын нэршил цэвэрлэх (монгол бичиг хасах)
  *   tsx src/cli.ts search-index <archive.pmtiles> [out.json]
@@ -20,6 +21,7 @@ import type { LayerCollections } from './encode.js';
 import { buildSearchIndex } from './search-index.js';
 import { PMTiles } from 'pmtiles';
 import { normalizeArchive } from './normalize.js';
+import { buildPalace } from './models/palace.js';
 import { MemorySource, NodeFileSource } from './pmtiles/node-source.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -134,14 +136,30 @@ function fromGeojsonDir(dir: string): void {
 /** OSM гаралтын нэршлийг цэвэрлэж (монгол бичиг хасах) шинэ архив бичнэ. */
 async function normalize(input: string, output: string): Promise<void> {
   const src = new NodeFileSource(input);
-  const r = await normalizeArchive(src, log);
+  const corrPath = join(pkgRoot, 'corrections/ub.json');
+  const corrections = existsSync(corrPath) ? (JSON.parse(readFileSync(corrPath, 'utf8')) as import('@metacity/schema').BuildingCorrections) : {};
+  const r = await normalizeArchive(src, { corrections, log });
   src.close();
   writeFile(output, r.bytes);
-  log(`normalize: ${r.changed} нэр цэвэрлэв, ${r.stats.addressedTiles} tile → ${output} (${fmtKB(r.bytes.length)})`);
+  log(`normalize: ${r.changed} нэр цэвэрлэв, ${r.corrected} барилга залруулав, ${r.stats.addressedTiles} tile → ${output} (${fmtKB(r.bytes.length)})`);
+}
+
+/** Нарийвчилсан 3D загварууд (glTF) + бүртгэл → apps/web/public/models/ */
+function models(): void {
+  const dir = join(repoRoot, 'apps/web/public/models');
+  mkdirSync(dir, { recursive: true });
+  const palace = buildPalace();
+  writeFileSync(join(dir, 'government-palace.glb'), palace.glb);
+  log(`government-palace.glb: ${fmtKB(palace.glb.length)}, ${palace.stats.triangles} гурвалжин, ${palace.stats.materials} материал`);
+  writeFileSync(join(dir, 'registry.json'), JSON.stringify([palace.def], null, 2));
+  log(`registry.json → ${dir}`);
 }
 
 const [cmd, arg, arg2] = process.argv.slice(2);
 switch (cmd) {
+  case 'models':
+    models();
+    break;
   case 'normalize':
     if (!arg || !arg2) throw new Error('normalize <in.pmtiles> <out.pmtiles>');
     await normalize(resolve(arg), resolve(arg2));
