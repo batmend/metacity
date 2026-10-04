@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Meta City",
+    "slug": "metacity",
+    "scheme": "metacity",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": { "backgroundColor": "#1636a8", "image": "./assets/icon.png", "resizeMode": "contain" },
+    "android": {
+      "package": "mn.metacity.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#1636a8" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "ios": {
+      "bundleIdentifier": "mn.metacity.app",
+      "supportsTablet": true,
+      "infoPlist": { "NSLocationWhenInUseUsageDescription": "Таны байршлыг газрын зураг дээр харуулахад ашиглана." }
+    },
+    "plugins": ["@maplibre/maplibre-react-native"],
+    "extra": { "assetsUrl": "http://localhost:4173" }
+  }
+}

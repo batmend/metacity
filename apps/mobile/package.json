@@ -1,0 +1,33 @@
+{
+  "name": "@metacity/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "description": "Meta City гар утасны апп (Expo + MapLibre Native)",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "export": "expo export --platform android --output-dir dist",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@maplibre/maplibre-react-native": "^11.4.1",
+    "@metacity/schema": "workspace:*",
+    "@metacity/services": "workspace:*",
+    "@metacity/style": "workspace:*",
+    "expo": "^57.0.26",
+    "expo-constants": "~57.0.20",
+    "expo-dev-client": "~57.0.19",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/react": "~19.2.18",
+    "typescript": "^5.9.3"
+  }
+}

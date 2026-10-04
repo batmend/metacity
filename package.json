@@ -13,7 +13,10 @@
     "test": "pnpm -r test",
     "seed": "pnpm --filter @metacity/tiles seed",
     "tiles:demo": "pnpm --filter @metacity/tiles build:demo",
-    "style:build": "pnpm --filter @metacity/style build"
+    "style:build": "pnpm --filter @metacity/style build",
+    "mobile:start": "pnpm --filter @metacity/mobile start",
+    "mobile:android": "pnpm --filter @metacity/mobile android",
+    "mobile:export": "pnpm --filter @metacity/mobile export"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

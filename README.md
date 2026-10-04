@@ -35,12 +35,15 @@ packages/tiles      Газрын зургийн үйлдвэр: PMTiles v3 би�
 packages/style      MapLibre загвар (өдөр/шөнө × 2D/3D), монгол нэршил, өөрийн glyph фонт
 packages/services   Иргэдийн үйлчилгээний каталог (демо)
 apps/web            Vite + Preact + MapLibre GL PWA
+apps/mobile         Expo + MapLibre Native гар утасны апп (ижил tile/загвар/каталог) — apps/mobile/README.md
 docs/               Архитектур, өгөгдлийн pipeline, замын зураг
 ```
 
 ## Онлайн демо
 
 https://batmend.github.io/metacity/ — салбар руу push хийх бүрт GitHub Actions (`.github/workflows/pages.yml`) автоматаар байршуулна.
+GitHub Pages нь private репод ажиллахгүй: репог public болгох (Settings → General → Change visibility) эсвэл
+Cloudflare Pages / Vercel (private репод үнэгүй; build: `BASE_PATH=/ pnpm build`, output: `apps/web/dist`) ашиглана.
 Утсан дээр нээгээд «Суулгах» (Add to Home Screen) хийвэл апп шиг суугдана.
 
 ## Эхлүүлэх

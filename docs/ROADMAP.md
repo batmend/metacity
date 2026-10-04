@@ -29,7 +29,9 @@
 - [ ] MLT (MapLibre Tiles) формат руу шилжих: tile 2–3× жижигрэнэ
 
 ## 4. Апп (дэлгүүр)
-- [ ] Capacitor багцлал (Android/iOS): ижил web bundle, native shell 3–5 MB; OTA шинэчлэл SW-ээр
+- [x] Expo + MapLibre Native апп (`apps/mobile`): ижил tile/загвар/каталог, native 3D
+- [ ] EAS Build → Google Play / App Store; OTA шинэчлэл (EAS Update)
+- [ ] Гомдол мэдээлэх, байршил тогтоох, push мэдэгдэл (вэбтэй ижил түвшинд)
 - [ ] Offline: хэрэглэгчийн сонгосон дүүргийн tile-уудыг урьдчилан татах (go-pmtiles `extract` → жижиг архив)
 - [ ] Push мэдэгдэл: гомдлын төлөв, ус/дулаан тасралт
 

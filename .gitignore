@@ -18,3 +18,10 @@ packages/tiles/data/
 
 # Үүсгэгдсэн хайлтын индекс (pnpm tiles:demo)
 apps/web/public/data/
+
+# Expo (apps/mobile)
+apps/mobile/dist/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/
+apps/mobile/.env
