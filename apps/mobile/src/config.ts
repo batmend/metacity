@@ -13,3 +13,4 @@ export const ASSETS_URL: string = (
 export const TILES_URL = `pmtiles://${ASSETS_URL}/tiles/ub-demo.pmtiles`;
 export const GLYPHS_URL = `${ASSETS_URL}/fonts/{fontstack}/{range}.pbf`;
 export const SEARCH_INDEX_URL = `${ASSETS_URL}/data/search-index.json`;
+export const TILES_META_URL = `${ASSETS_URL}/data/tiles-meta.json`;

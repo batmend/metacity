@@ -16,6 +16,7 @@ import { buildArchive, writeFile } from './build.js';
 import { generateUlaanbaatarSeed } from './seed/ub.js';
 import type { LayerCollections } from './encode.js';
 import { buildSearchIndex } from './search-index.js';
+import { PMTiles } from 'pmtiles';
 import { MemorySource, NodeFileSource } from './pmtiles/node-source.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,17 +60,43 @@ async function demo(): Promise<void> {
   const index = await buildSearchIndex(new MemorySource(r.bytes));
   mkdirSync(WEB_DATA, { recursive: true });
   writeFileSync(join(WEB_DATA, 'search-index.json'), JSON.stringify(index));
+  await writeTilesMeta(new MemorySource(r.bytes), join(WEB_DATA, 'tiles-meta.json'));
   log(`бичлээ: ${join(WEB_TILES, 'ub-demo.pmtiles')}, search-index.json (${index.length} бичлэг)`);
 }
 
-/** Ямар ч PMTiles архиваас (OSM/planetiler гаралт г.м.) хайлтын индекс үүсгэнэ. */
+/**
+ * Архивын header/metadata → апп-д хэрэгтэй товч мэдээлэл (хил, төв, нэр, attribution).
+ * Вэб болон гар утасны апп үүнийг уншиж maxBounds, эхний камер, attribution-оо тохируулна.
+ */
+async function writeTilesMeta(source: import('pmtiles').Source, outFile: string): Promise<void> {
+  const pm = new PMTiles(source);
+  const h = await pm.getHeader();
+  const m = (await pm.getMetadata()) as { name?: string; attribution?: string; description?: string };
+  const meta = {
+    name: m.name ?? 'Meta City',
+    description: m.description ?? '',
+    attribution: m.attribution ?? '',
+    bounds: { west: h.minLon, south: h.minLat, east: h.maxLon, north: h.maxLat },
+    center: { lng: h.centerLon, lat: h.centerLat, zoom: h.centerZoom },
+    minzoom: h.minZoom,
+    maxzoom: h.maxZoom,
+    tiles: h.numAddressedTiles,
+    generatedAt: new Date().toISOString(),
+  };
+  mkdirSync(dirname(outFile), { recursive: true });
+  writeFileSync(outFile, JSON.stringify(meta, null, 2));
+  log(`tiles-meta: ${meta.name}, ${meta.tiles} tile, z${meta.minzoom}–${meta.maxzoom} → ${outFile}`);
+}
+
+/** Ямар ч PMTiles архиваас (OSM/planetiler гаралт г.м.) хайлтын индекс + мета үүсгэнэ. */
 async function searchIndexFrom(archive: string, outFile: string): Promise<void> {
   const src = new NodeFileSource(archive);
   const index = await buildSearchIndex(src);
-  src.close();
   mkdirSync(dirname(outFile), { recursive: true });
   writeFileSync(outFile, JSON.stringify(index));
   log(`search-index: ${index.length} бичлэг → ${outFile}`);
+  await writeTilesMeta(src, join(dirname(outFile), 'tiles-meta.json'));
+  src.close();
 }
 
 function fromGeojsonDir(dir: string): void {

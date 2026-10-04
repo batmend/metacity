@@ -1,5 +1,6 @@
 import { signal, computed, effect } from '@preact/signals';
 import type { Theme, ViewMode } from '@metacity/style';
+import type { TilesMeta } from '@metacity/schema';
 
 export type PanelKind = 'info' | 'services' | 'report' | 'about' | null;
 
@@ -50,6 +51,8 @@ export const reports = signal<CitizenReport[]>(read<CitizenReport[]>('mc.reports
 export const pickingLocation = signal(false);
 export const reportDraftLocation = signal<[number, number] | null>(null);
 export const mapReady = signal(false);
+/** Ачаалсан tile архивын мета (нэр, хил, attribution) */
+export const tilesMeta = signal<TilesMeta | null>(null);
 export const dataBytes = signal(0);
 export const installPrompt = signal<(() => Promise<void>) | null>(null);
 

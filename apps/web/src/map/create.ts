@@ -30,8 +30,8 @@ import {
   type Theme,
   type ViewMode,
 } from '@metacity/style';
-import { DEMO_BOUNDS, UB_CENTER } from '@metacity/schema';
-import { mapReady, mode, pickingLocation, reportDraftLocation, reports, select, theme, type CitizenReport } from '../state/store';
+import { DEMO_BOUNDS, UB_CENTER, padBounds, type TilesMeta } from '@metacity/schema';
+import { mapReady, mode, pickingLocation, reportDraftLocation, reports, select, theme, tilesMeta, type CitizenReport } from '../state/store';
 import { effect } from '@preact/signals';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
@@ -39,6 +39,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
 const TILES_FILE = (import.meta.env['VITE_TILES'] as string | undefined) ?? 'tiles/ub-demo.pmtiles';
 export const TILES_URL = `pmtiles://${/^https?:/.test(TILES_FILE) ? TILES_FILE : `${location.origin}${BASE}${TILES_FILE}`}`;
 export const GLYPHS_URL = `${location.origin}${BASE}fonts/{fontstack}/{range}.pbf`;
+const META_URL = `${BASE}data/tiles-meta.json`;
 
 let protocol: Protocol | null = null;
 function ensureProtocol(): void {
@@ -49,7 +50,8 @@ function ensureProtocol(): void {
 }
 
 export function styleFor(t: Theme, m: ViewMode) {
-  return buildStyle({ tilesUrl: TILES_URL, glyphsUrl: GLYPHS_URL, theme: t, mode: m, attribution: '© Meta City · демо өгөгдөл' });
+  // attribution-ийг архивын metadata-аас (TileJSON) авна: демо → Meta City, OSM → © OpenStreetMap
+  return buildStyle({ tilesUrl: TILES_URL, glyphsUrl: GLYPHS_URL, theme: t, mode: m, attribution: tilesMeta.value?.attribution });
 }
 
 const BUILDING_LAYERS = [LAYER_ID.building3d, LAYER_ID.building2d];
@@ -65,9 +67,13 @@ export interface MetaCityMap {
   destroy(): void;
 }
 
+const boundsArray = (b: { west: number; south: number; east: number; north: number }): [[number, number], [number, number]] => [
+  [b.west, b.south],
+  [b.east, b.north],
+];
+
 export function createMap(container: HTMLElement): MetaCityMap {
   ensureProtocol();
-  const margin = 0.02;
   const map = new MLMap({
     container,
     style: styleFor(theme.value, mode.value),
@@ -79,14 +85,23 @@ export function createMap(container: HTMLElement): MetaCityMap {
     maxZoom: 19.5,
     maxPitch: 72,
     hash: true,
-    maxBounds: [
-      [DEMO_BOUNDS.west - margin, DEMO_BOUNDS.south - margin],
-      [DEMO_BOUNDS.east + margin, DEMO_BOUNDS.north + margin],
-    ],
+    maxBounds: boundsArray(padBounds(DEMO_BOUNDS)),
     attributionControl: { compact: true },
     canvasContextAttributes: { antialias: true },
     maxTileCacheSize: 256,
   });
+
+  // Архивын мета: бодит хил (бүх хот гэх мэт), attribution. Демо хил нь зөвхөн анхны утга.
+  fetch(META_URL)
+    .then((r) => (r.ok ? (r.json() as Promise<TilesMeta>) : null))
+    .then((meta) => {
+      if (!meta) return;
+      tilesMeta.value = meta;
+      map.setMaxBounds(boundsArray(padBounds(meta.bounds)));
+      const src = map.getSource(SOURCE_ID);
+      if (src && 'setAttribution' in src) (src as unknown as { setAttribution?: (a: string) => void }).setAttribution?.(meta.attribution);
+    })
+    .catch(() => {});
 
   map.addControl(new NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.addControl(new GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false }), 'bottom-right');

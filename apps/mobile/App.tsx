@@ -12,9 +12,9 @@ import { StatusBar } from 'expo-status-bar';
 import { Camera, GeoJSONSource, Layer, Map, UserLocation, type CameraRef, type MapRef, type StyleSpecification } from '@maplibre/maplibre-react-native';
 import type { Feature, FeatureCollection } from 'geojson';
 import { buildStyle, CAMERA_2D, CAMERA_3D, LAYER_ID, PALETTES, type Theme, type ViewMode } from '@metacity/style';
-import { DEMO_BOUNDS, UB_CENTER } from '@metacity/schema';
+import { DEMO_BOUNDS, UB_CENTER, padBounds, type TilesMeta } from '@metacity/schema';
 import { parseServiceIds, servicesByCategory, getService, type Service } from '@metacity/services';
-import { GLYPHS_URL, TILES_URL } from './src/config';
+import { GLYPHS_URL, TILES_META_URL, TILES_URL } from './src/config';
 import { COLORS, type ThemeColors } from './src/theme';
 import { BUILDING_CLASS_LABEL, PLACE_CLASS_LABEL, POI_CLASS_LABEL } from './src/labels';
 import { Sheet } from './src/ui/Sheet';
@@ -53,13 +53,26 @@ function MetaCity() {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchEntry[]>([]);
   const [selectedShape, setSelectedShape] = useState<FeatureCollection>(EMPTY);
+  const [meta, setMeta] = useState<TilesMeta | null>(null);
+
+  // Архивын мета: бодит хил (бүх хот), attribution
+  useEffect(() => {
+    fetch(TILES_META_URL)
+      .then((r) => (r.ok ? (r.json() as Promise<TilesMeta>) : null))
+      .then((m) => m && setMeta(m))
+      .catch(() => {});
+  }, []);
   const mapRef = useRef<MapRef>(null);
   const camRef = useRef<CameraRef>(null);
   const insets = useSafeAreaInsets();
   const c = COLORS[theme];
 
   // Style-spec-ийн төрлийн хувилбар RN сангийнхаас шинэ тул cast (runtime-д ижил JSON)
-  const mapStyle = useMemo(() => buildStyle({ tilesUrl: TILES_URL, glyphsUrl: GLYPHS_URL, theme, mode }) as unknown as StyleSpecification, [theme, mode]);
+  const mapStyle = useMemo(
+    () => buildStyle({ tilesUrl: TILES_URL, glyphsUrl: GLYPHS_URL, theme, mode, attribution: meta?.attribution }) as unknown as StyleSpecification,
+    [theme, mode, meta?.attribution],
+  );
+  const bounds = padBounds(meta?.bounds ?? DEMO_BOUNDS);
 
   useEffect(() => {
     let alive = true;
@@ -139,7 +152,7 @@ function MetaCity() {
         <Camera
           ref={camRef}
           initialViewState={{ center: [UB_CENTER.lng, UB_CENTER.lat], zoom: 15.4, pitch: CAMERA_3D.pitch, bearing: CAMERA_3D.bearing }}
-          maxBounds={[DEMO_BOUNDS.west - 0.02, DEMO_BOUNDS.south - 0.02, DEMO_BOUNDS.east + 0.02, DEMO_BOUNDS.north + 0.02]}
+          maxBounds={[bounds.west, bounds.south, bounds.east, bounds.north]}
           minZoom={11}
           maxZoom={19.5}
         />

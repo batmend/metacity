@@ -25,7 +25,7 @@ java $JAVA_OPTS -jar "$JAR" generate-custom \
   --schema=planetiler/metacity.yml \
   --download \
   --bounds="$BBOX" \
-  --minzoom=6 --maxzoom=15 \
+  --minzoom=6 --maxzoom="${MAXZOOM:-15}" \
   --output="$OUT" \
   --force
 

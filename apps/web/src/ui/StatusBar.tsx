@@ -1,4 +1,4 @@
-import { dataBytes, mapReady, mode, pickingLocation } from '../state/store';
+import { dataBytes, mapReady, mode, pickingLocation, tilesMeta } from '../state/store';
 import { formatBytes } from '../map/meter';
 
 export function StatusBar() {
@@ -12,7 +12,7 @@ export function StatusBar() {
           <span class="sep">·</span>
           <span title="Газрын зураг, фонт, өгөгдлийн хүсэлтээр татсан нийт хэмжээ">Татсан: {formatBytes(dataBytes.value)}</span>
           <span class="sep where">·</span>
-          <span class="muted where">Сүхбаатарын талбай (демо)</span>
+          <span class="muted where">{tilesMeta.value?.name ?? 'Улаанбаатар'}</span>
         </>
       )}
     </div>

@@ -1,0 +1,70 @@
+name: Build OSM tiles
+# Монголын OSM хуулбарыг татаж, planetiler-ээр Meta City схемийн tile үүсгээд
+# "data-latest" release-д хадгална. Pages deploy энэ release-ийг ашиглана.
+on:
+  workflow_dispatch:
+    inputs:
+      bbox:
+        description: 'west,south,east,north (анхдагч: Улаанбаатар бүхэлдээ)'
+        default: '106.70,47.80,107.15,48.00'
+      maxzoom:
+        description: 'Хамгийн дээд tile zoom (15 = барилга бүр, 14 = хөнгөн)'
+        default: '15'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Cache planetiler + OSM extract
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/tiles/data/planetiler.jar
+            packages/tiles/data/sources
+          key: osm-${{ github.run_number }}
+          restore-keys: osm-
+      - name: planetiler (OSM → PMTiles)
+        env:
+          BBOX: ${{ inputs.bbox }}
+          MAXZOOM: ${{ inputs.maxzoom }}
+          JAVA_OPTS: -Xmx6g
+        run: cd packages/tiles && scripts/build-osm.sh
+      - name: Report
+        run: |
+          {
+            echo '### OSM tiles'
+            echo "- bbox: ${{ inputs.bbox }}, maxzoom: ${{ inputs.maxzoom }}"
+            echo "- ub.pmtiles: $(stat -c %s packages/tiles/out/ub.pmtiles | awk '{printf "%.1f", $1/1048576}') MB"
+            echo "- search-index: $(python3 -c "import json;print(len(json.load(open('apps/web/public/data/search-index.json'))))") бичлэг"
+            cat apps/web/public/data/tiles-meta.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to release data-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp packages/tiles/out/ub.pmtiles ub.pmtiles
+          cp apps/web/public/data/search-index.json search-index.json
+          cp apps/web/public/data/tiles-meta.json tiles-meta.json
+          gh release view data-latest >/dev/null 2>&1 || gh release create data-latest --title "OSM tiles (latest)" --notes "Planetiler-ээр үүсгэсэн Улаанбаатарын tile. © OpenStreetMap contributors (ODbL)." --target "$GITHUB_SHA"
+          gh release upload data-latest ub.pmtiles search-index.json tiles-meta.json --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osm-tiles
+          path: |
+            packages/tiles/out/ub.pmtiles
+            apps/web/public/data/search-index.json
+            apps/web/public/data/tiles-meta.json

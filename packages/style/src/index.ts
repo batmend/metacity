@@ -297,14 +297,31 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
   const P = PALETTES[theme];
   const vis = (on: boolean) => ({ visibility: on ? 'visible' : 'none' }) as const;
 
+  // OSM-д ихэнх барилга building=yes (class=other) тул өндрөөр нь өнгийг зөөлөн ялгана:
+  // намхан → дулаан саарал, өндөр → хүйтэн цайвар (бодит хотын харагдац)
+  const otherByHeight: ExpressionSpecification = [
+    'interpolate',
+    ['linear'],
+    ['coalesce', get('height'), ['*', ['coalesce', get('levels'), 3], 3.2]],
+    0,
+    theme === 'light' ? '#d2cdc3' : '#353940',
+    20,
+    P.building.other,
+    60,
+    theme === 'light' ? '#c9d3dd' : '#3d4654',
+    150,
+    theme === 'light' ? '#b9c9db' : '#4a5569',
+  ] as unknown as ExpressionSpecification;
   const buildingColor: DataDrivenPropertyValueSpecification<string> = [
     'case',
     ['boolean', ['feature-state', 'selected'], false],
     P.buildingSelected,
     ['boolean', ['feature-state', 'hover'], false],
     P.buildingHover,
+    ['==', get('class'), 'other'],
+    otherByHeight,
     matchClass(P.building, P.building.other),
-  ] as ExpressionSpecification;
+  ] as unknown as ExpressionSpecification;
 
   const layers: LayerSpecification[] = [
     { id: LAYER_ID.background, type: 'background', paint: { 'background-color': P.background } },
@@ -517,7 +534,8 @@ export function buildStyle(opts: StyleOptions): StyleSpecification {
         attribution: opts.attribution ?? '© Meta City',
       },
     },
-    light: { anchor: 'viewport', color: '#ffffff', intensity: theme === 'light' ? 0.35 : 0.2, position: [1.15, 210, 30] },
+    // Нарны гэрэл: баруун урдаас, налуу — ханануудын сүүдэр тодорч 3D бодит харагдана
+    light: { anchor: 'map', color: theme === 'light' ? '#fff6e5' : '#c9d4ff', intensity: theme === 'light' ? 0.5 : 0.25, position: [1.3, 225, 40] },
     sky: {
       'sky-color': P.sky.sky,
       'horizon-color': P.sky.horizon,

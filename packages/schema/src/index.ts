@@ -301,3 +301,25 @@ export const VECTOR_LAYERS = (Object.keys(LAYER) as LayerName[]).map((id) => ({
   maxzoom: LAYER_ZOOM[id].max,
   fields: {} as Record<string, string>,
 }));
+
+// ---------------------------------------------------------------------------
+// Архивын мета (tiles-meta.json): `tsx src/cli.ts demo | search-index` үүсгэнэ,
+// вэб ба гар утасны апп уншиж хил/төв/attribution-оо тохируулна.
+// ---------------------------------------------------------------------------
+
+export interface TilesMeta {
+  name: string;
+  description: string;
+  attribution: string;
+  bounds: LngLatBounds;
+  center: { lng: number; lat: number; zoom: number };
+  minzoom: number;
+  maxzoom: number;
+  tiles: number;
+  generatedAt: string;
+}
+
+/** Хилийг margin-аар (градус) тэлнэ — камер хилийн яг захад гацахгүй. */
+export function padBounds(b: LngLatBounds, margin = 0.02): LngLatBounds {
+  return { west: b.west - margin, south: b.south - margin, east: b.east + margin, north: b.north + margin };
+}

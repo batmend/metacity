@@ -24,8 +24,21 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build (base = /<repo>/)
-        run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" pnpm build
+      - name: Demo tiles + style
+        run: pnpm tiles:demo && pnpm style:build
+      - name: Use real OSM tiles when the data-latest release exists
+        run: |
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/data-latest"
+          if curl -fsSL -o apps/web/public/tiles/ub.pmtiles "$base/ub.pmtiles"; then
+            curl -fsSL -o apps/web/public/data/search-index.json "$base/search-index.json"
+            curl -fsSL -o apps/web/public/data/tiles-meta.json "$base/tiles-meta.json"
+            echo "VITE_TILES=tiles/ub.pmtiles" >> "$GITHUB_ENV"
+            echo "OSM tiles: $(stat -c %s apps/web/public/tiles/ub.pmtiles) bytes"
+          else
+            echo "data-latest release алга — демо seed ашиглана"
+          fi
+      - name: Build web (base = /<repo>/)
+        run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" pnpm --filter @metacity/web build
       - uses: actions/configure-pages@v5
         with:
           enablement: true
