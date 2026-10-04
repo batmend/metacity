@@ -2,6 +2,10 @@ name: Build OSM tiles
 # Монголын OSM хуулбарыг татаж, planetiler-ээр Meta City схемийн tile үүсгээд
 # "data-latest" release-д хадгална. Pages deploy энэ release-ийг ашиглана.
 on:
+  # Схем эсвэл энэ workflow өөрчлөгдөхөд автоматаар; бусад үед гараар (Actions → Run workflow)
+  push:
+    branches: [main, claude/vibrant-cerf-5zhiya]
+    paths: ['.github/workflows/build-osm.yml', 'packages/tiles/planetiler/**', 'packages/tiles/scripts/build-osm.sh']
   workflow_dispatch:
     inputs:
       bbox:
@@ -39,15 +43,15 @@ jobs:
           restore-keys: osm-
       - name: planetiler (OSM → PMTiles)
         env:
-          BBOX: ${{ inputs.bbox }}
-          MAXZOOM: ${{ inputs.maxzoom }}
+          BBOX: ${{ inputs.bbox || '106.70,47.80,107.15,48.00' }}
+          MAXZOOM: ${{ inputs.maxzoom || '15' }}
           JAVA_OPTS: -Xmx6g
         run: cd packages/tiles && scripts/build-osm.sh
       - name: Report
         run: |
           {
             echo '### OSM tiles'
-            echo "- bbox: ${{ inputs.bbox }}, maxzoom: ${{ inputs.maxzoom }}"
+            echo "- bbox: ${{ inputs.bbox || '106.70,47.80,107.15,48.00' }}, maxzoom: ${{ inputs.maxzoom || '15' }}"
             echo "- ub.pmtiles: $(stat -c %s packages/tiles/out/ub.pmtiles | awk '{printf "%.1f", $1/1048576}') MB"
             echo "- search-index: $(python3 -c "import json;print(len(json.load(open('apps/web/public/data/search-index.json'))))") бичлэг"
             cat apps/web/public/data/tiles-meta.json
