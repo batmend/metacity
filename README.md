@@ -38,6 +38,11 @@ apps/web            Vite + Preact + MapLibre GL PWA
 docs/               Архитектур, өгөгдлийн pipeline, замын зураг
 ```
 
+## Онлайн демо
+
+https://batmend.github.io/metacity/ — салбар руу push хийх бүрт GitHub Actions (`.github/workflows/pages.yml`) автоматаар байршуулна.
+Утсан дээр нээгээд «Суулгах» (Add to Home Screen) хийвэл апп шиг суугдана.
+
 ## Эхлүүлэх
 
 ```bash

@@ -9,7 +9,11 @@ import { VitePWA } from 'vite-plugin-pwa';
  *  - Газрын зургийн өгөгдөл (PMTiles) shell-д ОРОХГҮЙ: HTTP Range-аар зөвхөн харж буй tile татагдана.
  *  - Фонт (glyph PBF) хэрэглэх үедээ runtime cache-д ордог (CacheFirst).
  */
+/** Хостингийн дэд зам. GitHub Pages: BASE_PATH=/metacity/ ; өөрийн домэйн: / */
+const base = process.env['BASE_PATH'] ?? '/';
+
 export default defineConfig({
+  base,
   build: {
     target: 'es2022',
     sourcemap: false,
@@ -27,8 +31,8 @@ export default defineConfig({
         short_name: 'Meta City',
         description: 'Улаанбаатар хотын digital twin: хотоо 2D/3D-ээр үзэж, үйлчилгээгээ газрын зураг дээрээс шууд аваарай.',
         lang: 'mn',
-        start_url: '/',
-        scope: '/',
+        start_url: base,
+        scope: base,
         display: 'standalone',
         orientation: 'any',
         background_color: '#eceee9',
@@ -47,12 +51,12 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/fonts/'),
+            urlPattern: ({ url }) => url.pathname.includes('/fonts/'),
             handler: 'CacheFirst',
             options: { cacheName: 'metacity-fonts', expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 90 } },
           },
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/data/'),
+            urlPattern: ({ url }) => url.pathname.includes('/data/'),
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'metacity-data', expiration: { maxEntries: 16, maxAgeSeconds: 60 * 60 * 24 * 7 } },
           },
